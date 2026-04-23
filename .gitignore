@@ -1,0 +1,9 @@
+.venv/
+node_modules/
+outputs/
+acidentes*.csv
+*.xlsx
+*.log
+dist/
+build/
+.env
