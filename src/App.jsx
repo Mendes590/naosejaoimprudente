@@ -1,29 +1,259 @@
-import { useEffect, useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowRight,
   ArrowUp,
   ChevronLeft,
   ChevronRight,
   Clock3,
+  MapPinned,
+  Pause,
   Play,
   ShieldAlert,
+  Timer,
+  Users,
 } from 'lucide-react'
-import { Reveal } from './components/Reveal'
-import { SectionHeading } from './components/SectionHeading'
-import { BrazilMapSection } from './components/sections/BrazilMapSection'
-import { DayOnBRsSection } from './components/sections/DayOnBRsSection'
-import { SegmentedMetricTabs } from './components/ui/SegmentedMetricTabs'
-import { AnimatedCount } from './components/ui/AnimatedCount'
-import {
-  collisionSteps,
-  heroHighlights,
-  journey,
-  number,
-  totals,
-  yearlyData,
-  yearlyModes,
-} from './data/siteContent'
+
+const number = new Intl.NumberFormat('pt-BR')
+const decimal = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+const totals = {
+  accidents: 213452,
+  fatalAccidents: 15290,
+  deaths: 17830,
+  seriousInjuries: 59320,
+  involved: 555562,
+}
+
+const totalDays = 365 + 366 + 365
+const totalMinutes = totalDays * 24 * 60
+
+const journey = [
+  { id: 'abertura', label: 'Abertura', short: 'Início' },
+  { id: 'ritmo', label: 'Ritmo', short: 'Ritmo' },
+  { id: 'panorama', label: 'Panorama', short: 'Panorama' },
+  { id: 'evolucao', label: 'Evolução', short: 'Evolução' },
+  { id: 'riscos', label: 'Padrões', short: 'Padrões' },
+  { id: 'humano', label: 'Fator humano', short: 'Humano' },
+  { id: 'colisao', label: 'Colisão', short: 'Colisão' },
+  { id: 'fechamento', label: 'Fechamento', short: 'Final' },
+]
+
+const heroHighlights = [
+  'Dados da PRF',
+  'Apenas rodovias federais brasileiras',
+  'Não representa todo o trânsito do Brasil',
+]
+
+const rhythmCards = [
+  {
+    id: 'accidents',
+    label: 'Acidentes por dia',
+    value: Math.round(totals.accidents / totalDays),
+    kicker: 'Nas BRs analisadas, o problema não para.',
+    microcopy: 'Outra viagem interrompida a cada 7 minutos.',
+  },
+  {
+    id: 'fatal',
+    label: 'Acidentes fatais por dia',
+    value: Math.round(totals.fatalAccidents / totalDays),
+    kicker: 'O risco se repete todos os dias.',
+    microcopy: `Um acidente fatal a cada ${formatDuration(totalMinutes / totals.fatalAccidents)}.`,
+  },
+  {
+    id: 'deaths',
+    label: 'Mortes por dia',
+    value: Math.round(totals.deaths / totalDays),
+    kicker: 'Há casas esperando por alguém.',
+    microcopy: `Uma morte a cada ${formatDuration(totalMinutes / totals.deaths)}.`,
+  },
+  {
+    id: 'serious',
+    label: 'Feridos graves por dia',
+    value: Math.round(totals.seriousInjuries / totalDays),
+    kicker: 'Nem toda vítima morre. Muitas seguem marcadas.',
+    microcopy: 'Trauma grave em média 54 vezes por dia.',
+  },
+]
+
+const panoramaCards = [
+  {
+    icon: AlertTriangle,
+    label: 'Acidentes registrados',
+    value: totals.accidents,
+    note: 'ocorrências nas BRs entre 2023 e 2025',
+  },
+  {
+    icon: ShieldAlert,
+    label: 'Acidentes fatais',
+    value: totals.fatalAccidents,
+    note: 'casos em que a viagem não terminou igual começou',
+  },
+  {
+    icon: Users,
+    label: 'Pessoas envolvidas',
+    value: totals.involved,
+    note: 'vidas puxadas para a mesma consequência',
+  },
+  {
+    icon: Clock3,
+    label: 'Feridos graves',
+    value: totals.seriousInjuries,
+    note: 'sobreviventes com impacto severo depois da pista',
+  },
+]
+
+const yearlyModes = {
+  accidents: {
+    label: 'Acidentes',
+    title: 'O volume sobe em 2024 e segue alto em 2025.',
+    text: 'Não há alívio real no recorte das BRs monitoradas pela PRF.',
+    insight: 'Mesmo olhando só para rodovias federais, a recorrência já assusta.',
+    accent: 'gold',
+  },
+  fatalAccidents: {
+    label: 'Acidentes fatais',
+    title: 'Dois anos seguidos acima de cinco mil casos fatais.',
+    text: 'A morte não aparece como exceção. Ela volta.',
+    insight: 'O problema permanece em patamar alto dentro do recorte analisado.',
+    accent: 'copper',
+  },
+  deaths: {
+    label: 'Vítimas fatais',
+    title: 'Mais de seis mil vidas perdidas em 2024 e 2025.',
+    text: 'Cada barra representa ausências reais.',
+    insight: 'Mesmo sem representar todo o trânsito nacional, o recorte já é grave demais.',
+    accent: 'red',
+  },
+}
+
+const yearlyData = [
+  { year: '2023', accidents: 67767, fatalAccidents: 4858, deaths: 5627 },
+  { year: '2024', accidents: 73156, fatalAccidents: 5222, deaths: 6160 },
+  { year: '2025', accidents: 72529, fatalAccidents: 5209, deaths: 6043 },
+]
+
+const riskTabs = {
+  causes: {
+    label: 'Causas',
+    title: 'Muito risco começa antes da batida.',
+    text: 'Atenção insuficiente, reação tardia e decisões sem margem aparecem de novo e de novo.',
+    insight: 'Em muitos casos, o que faltou foi atenção.',
+    unit: 'ocorrências',
+    data: [
+      { label: 'Reação tardia ou ineficiente do condutor', value: 31574, note: 'atenção que chegou tarde' },
+      { label: 'Ausência de reação do condutor', value: 31459, note: 'segundos que não voltam' },
+      { label: 'Acessar a via sem observar outros veículos', value: 20380, note: 'entrada sem margem' },
+      { label: 'Velocidade incompatível', value: 12675, note: 'mais força, menos chance' },
+      { label: 'Ingestão de álcool pelo condutor', value: 11138, note: 'risco assumido ao volante' },
+    ],
+  },
+  types: {
+    label: 'Tipos',
+    title: 'O que mais acontece não é sempre o que mais mata.',
+    text: 'Colisão traseira domina o volume. Colisão frontal carrega peso muito maior.',
+    insight: 'Frequência e letalidade não contam a mesma história.',
+    unit: 'ocorrências',
+    data: [
+      { label: 'Colisão traseira', value: 41229, note: 'distância e atenção falharam' },
+      { label: 'Saída de leito carroçável', value: 31236, note: 'controle perdido' },
+      { label: 'Colisão transversal', value: 27161, note: 'trajetos em choque' },
+      { label: 'Colisão frontal', value: 14233, note: 'pouca chance de correção' },
+      { label: 'Atropelamento de pedestre', value: 9356, note: 'o lado mais vulnerável da via' },
+    ],
+  },
+  lethality: {
+    label: 'Letalidade',
+    title: 'Há erros que quase não dão segunda chance.',
+    text: 'Contramão, colisão frontal e atropelamentos concentram risco extremo de morte.',
+    insight: 'Atravessar a faixa pode atravessar uma família.',
+    unit: 'letalidade',
+    data: [
+      { label: 'Pedestre andava na pista', value: 41.44, note: 'exposição total', percent: true },
+      { label: 'Colisão frontal', value: 29.81, note: 'impacto direto', percent: true },
+      { label: 'Atropelamento de pedestre', value: 28.97, note: 'corpo contra máquina', percent: true },
+      { label: 'Transitar na contramão', value: 28.96, note: 'erro que invade a vida do outro', percent: true },
+      { label: 'Ultrapassagem indevida', value: 16.62, note: 'segundos de pressa, anos de dor', percent: true },
+    ],
+  },
+  patterns: {
+    label: 'Padrões',
+    title: 'A repetição mostra comportamento, não acaso.',
+    text: 'Atenção, reação e decisão aparecem como núcleo do problema.',
+    insight: 'A estrada não perdoa distrações repetidas.',
+    unit: 'ocorrências agrupadas',
+    data: [
+      { label: 'Falha de atenção ou reação', value: 63033, note: 'tempo perdido quando mais importava' },
+      { label: 'Decisão sem margem', value: 32955, note: 'escolha que ignora o outro' },
+      { label: 'Risco assumido', value: 23813, note: 'álcool, velocidade ou sono' },
+    ],
+  },
+  territory: {
+    label: 'Território',
+    title: 'O problema se espalha. Alguns corredores pesam ainda mais.',
+    text: 'Não é todo o trânsito brasileiro. Ainda assim, o recorte das BRs já desenha áreas críticas.',
+    insight: 'Mesmo nas BRs apenas, a escala já é alarmante.',
+    unit: 'vítimas fatais',
+    data: [
+      { label: 'MG', value: 2285, note: 'Minas Gerais' },
+      { label: 'BA', value: 1766, note: 'Bahia' },
+      { label: 'PR', value: 1761, note: 'Paraná' },
+      { label: 'SC', value: 1214, note: 'Santa Catarina' },
+      { label: 'RJ', value: 980, note: 'Rio de Janeiro' },
+    ],
+  },
+}
+
+const humanSignal = {
+  total: 114565,
+  percent: 53.67,
+  perDay: 105,
+}
+
+const storySteps = [
+  {
+    id: '01',
+    title: 'Trajeto comum',
+    text: 'Você segue na sua faixa. Tudo parece normal.',
+    note: 'Quem está do outro lado do para-brisa também quer chegar em casa.',
+  },
+  {
+    id: '02',
+    title: 'Risco no sentido oposto',
+    text: 'O erro ainda está longe. Mas ele já existe.',
+    note: 'Nem toda vítima controla o perigo que se aproxima.',
+  },
+  {
+    id: '03',
+    title: 'Ultrapassagem indevida',
+    text: 'Outro motorista invade a sua faixa e leva o risco até você.',
+    note: 'Uma decisão errada pode atingir quem não errou.',
+  },
+  {
+    id: '04',
+    title: 'Sem tempo',
+    text: 'A colisão frontal chega antes de qualquer correção.',
+    note: 'Na BR, um segundo pode ser tudo.',
+  },
+  {
+    id: '05',
+    title: 'Depois da batida',
+    text: 'O impacto termina na pista. A consequência continua fora dela.',
+    note: 'A imprudência não para em quem a comete.',
+  },
+]
+
+function formatDuration(minutes) {
+  if (minutes < 60) return `${Math.round(minutes)} min`
+  const hours = Math.floor(minutes / 60)
+  const remaining = Math.round(minutes % 60)
+  return `${hours}h${String(remaining).padStart(2, '0')}`
+}
 
 function useActiveSection(ids) {
   const [active, setActive] = useState(ids[0])
@@ -37,7 +267,7 @@ function useActiveSection(ids) {
 
         if (visible[0]) setActive(visible[0].target.id)
       },
-      { rootMargin: '-22% 0px -44% 0px', threshold: [0.2, 0.4, 0.6] },
+      { rootMargin: '-28% 0px -48% 0px', threshold: [0.2, 0.35, 0.55, 0.72] },
     )
 
     ids.forEach((id) => {
@@ -55,22 +285,115 @@ function usePageProgress() {
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
-    const handleScroll = () => {
+    const onScroll = () => {
       const max = document.documentElement.scrollHeight - window.innerHeight
       setProgress(max > 0 ? (window.scrollY / max) * 100 : 0)
     }
 
-    handleScroll()
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('resize', handleScroll)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
 
     return () => {
-      window.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', handleScroll)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
     }
   }, [])
 
   return progress
+}
+
+function Reveal({ children, className = '', delay = 0 }) {
+  const reduce = useReducedMotion()
+
+  if (reduce) return <div className={className}>{children}</div>
+
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 22 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.22 }}
+      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+function CountUp({ value, percent = false, suffix = '', duration = 1400 }) {
+  const reduce = useReducedMotion()
+  const ref = useRef(null)
+  const [started, setStarted] = useState(Boolean(reduce))
+  const [display, setDisplay] = useState(reduce ? value : 0)
+
+  useEffect(() => {
+    if (reduce) {
+      setStarted(true)
+      setDisplay(value)
+      return undefined
+    }
+
+    const node = ref.current
+    if (!node) return undefined
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setStarted(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.3, rootMargin: '0px 0px -12% 0px' },
+    )
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [reduce, value])
+
+  useEffect(() => {
+    if (reduce) {
+      setDisplay(value)
+      return undefined
+    }
+
+    if (!started) {
+      setDisplay(0)
+      return undefined
+    }
+
+    let frame = 0
+    const start = performance.now()
+
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1)
+      const eased = 1 - (1 - progress) ** 3
+      setDisplay(value * eased)
+      if (progress < 1) frame = requestAnimationFrame(tick)
+    }
+
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [duration, reduce, started, value])
+
+  const formatted = percent ? decimal.format(display) : number.format(Math.round(display))
+
+  return (
+    <span ref={ref} className="count-up-number">
+      {formatted}
+      {percent ? '%' : suffix}
+    </span>
+  )
+}
+
+function SectionHeading({ eyebrow, title, text }) {
+  return (
+    <Reveal className="section-heading">
+      <span className="eyebrow">{eyebrow}</span>
+      <h2>{title}</h2>
+      {text ? <p>{text}</p> : null}
+    </Reveal>
+  )
 }
 
 function TopProgress({ active, progress }) {
@@ -130,10 +453,9 @@ function JourneyControls({ active }) {
   const index = Math.max(0, journey.findIndex((item) => item.id === active))
   const previous = journey[index - 1]
   const next = journey[index + 1]
-  const stateClass = previous && next ? 'journey-controls-dual' : 'journey-controls-single'
 
   return (
-    <nav className={`journey-controls ${stateClass}`} aria-label="Controles da jornada">
+    <nav className="journey-controls" aria-label="Controles da jornada">
       {previous ? (
         <a href={`#${previous.id}`} className="journey-control">
           <ChevronLeft size={15} />
@@ -162,11 +484,11 @@ function HeroSection() {
 
       <div className="container hero-layout">
         <Reveal className="hero-copy">
-          <span className="hero-context">PRF · BRs brasileiras · 2023 a 2025</span>
-          <h1>Todos os dias, o risco encontra pessoas reais nas BRs brasileiras.</h1>
+          <span className="eyebrow">PRF · rodovias federais brasileiras · 2023 a 2025</span>
+          <h1>Nas BRs, um erro pode mudar várias vidas.</h1>
           <p>
-            Este não é um painel frio. É uma leitura narrativa sobre recorrência, território e consequência humana nas
-            rodovias federais brasileiras.
+            Dados da Polícia Rodoviária Federal sobre acidentes em rodovias federais brasileiras.
+            Não é todo o trânsito do Brasil. E já é grave o bastante.
           </p>
 
           <div className="hero-pill-row">
@@ -179,54 +501,167 @@ function HeroSection() {
 
           <div className="hero-actions">
             <a href="#ritmo" className="button button-primary">
-              Seguir a experiência
-              <ChevronRight size={16} />
+              Sentir o ritmo
+              <ArrowRight size={16} />
             </a>
             <a href="#colisao" className="button button-secondary">
-              Ver a cena
+              Entender a colisão
             </a>
           </div>
 
           <div className="hero-note">
             <Clock3 size={18} />
-            <span>Em média, 16 pessoas morreram por dia nesse recorte.</span>
+            <span>Em média, 16 pessoas morreram por dia nesse recorte das BRs.</span>
           </div>
         </Reveal>
 
         <Reveal className="hero-panel" delay={0.08}>
-          <div className="hero-panel-top">
-            <span className="micro-label">Leitura principal</span>
-            <span className="hero-panel-mark">Recorte federal</span>
-          </div>
-
+          <span className="panel-kicker">Vidas interrompidas</span>
           <strong className="hero-number">
-            <AnimatedCount value={totals.deaths} />
+            <CountUp value={totals.deaths} />
           </strong>
-          <p>Vidas perdidas nas rodovias federais brasileiras entre 2023 e 2025.</p>
+          <p>mortes registradas pela PRF nas rodovias federais brasileiras.</p>
 
           <div className="hero-panel-grid">
-            <article className="mini-stat-card">
-              <AlertTriangle size={18} />
+            <article>
               <span>Acidentes</span>
-              <strong>{number.format(totals.accidents)}</strong>
+              <strong>
+                <CountUp value={totals.accidents} duration={1500} />
+              </strong>
             </article>
-            <article className="mini-stat-card">
-              <ShieldAlert size={18} />
-              <span>Acidentes fatais</span>
-              <strong>{number.format(totals.fatalAccidents)}</strong>
-            </article>
-            <article className="mini-stat-card">
-              <Clock3 size={18} />
-              <span>Feridos graves</span>
-              <strong>{number.format(totals.seriousInjuries)}</strong>
-            </article>
-            <article className="mini-stat-card">
-              <span className="mini-stat-kicker">Leitura</span>
-              <strong>Isso se repete.</strong>
-              <p>Ao longo do dia, em lugares reais, e depois da batida.</p>
+            <article>
+              <span>Fatais</span>
+              <strong>
+                <CountUp value={totals.fatalAccidents} duration={1500} />
+              </strong>
             </article>
           </div>
+
+          <div className="hero-panel-footer">
+            <strong>Recorte: BRs brasileiras.</strong>
+            <span>Mesmo assim, o cenário já assusta.</span>
+          </div>
         </Reveal>
+
+        <a href="#ritmo" className="scroll-cue" aria-label="Ir para o ritmo do problema">
+          <ArrowDown size={16} />
+        </a>
+      </div>
+    </section>
+  )
+}
+
+function RhythmSection() {
+  const [active, setActive] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const current = rhythmCards[active]
+
+  useEffect(() => {
+    if (paused) return undefined
+
+    const timer = setInterval(() => {
+      setActive((value) => (value + 1) % rhythmCards.length)
+    }, 3600)
+
+    return () => clearInterval(timer)
+  }, [paused])
+
+  return (
+    <section className="story-section" id="ritmo">
+      <div className="container">
+        <SectionHeading
+          eyebrow="Ritmo do problema"
+          title="Isso não acontece às vezes. Acontece todos os dias."
+          text="Transformar volume em tempo deixa a repetição mais clara. Nas BRs analisadas, o risco segue rodando."
+        />
+
+        <div className="rhythm-layout">
+          <Reveal className="feature-panel feature-panel-large">
+            <span className="metric-label">{current.label}</span>
+            <AnimatePresence mode="wait">
+              <motion.strong
+                key={current.id}
+                className="feature-number"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.28 }}
+              >
+                <CountUp value={current.value} />
+              </motion.strong>
+            </AnimatePresence>
+            <p className="feature-kicker">{current.kicker}</p>
+            <div className="feature-inline">
+              <Timer size={16} />
+              {current.microcopy}
+            </div>
+          </Reveal>
+
+          <Reveal className="rhythm-sidebar" delay={0.08}>
+            <button type="button" className="toggle-button" onClick={() => setPaused((value) => !value)}>
+              {paused ? <Play size={15} /> : <Pause size={15} />}
+              {paused ? 'Retomar' : 'Pausar'}
+            </button>
+
+            {rhythmCards.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                className={index === active ? 'rhythm-card active' : 'rhythm-card'}
+                onClick={() => {
+                  setActive(index)
+                  setPaused(true)
+                }}
+              >
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <p>{item.microcopy}</p>
+              </button>
+            ))}
+          </Reveal>
+        </div>
+
+        <Reveal className="section-quote">
+          <strong>Enquanto o tempo passa, a estrada repete o risco.</strong>
+          <span>Recorte: ocorrências da PRF nas rodovias federais brasileiras.</span>
+        </Reveal>
+      </div>
+    </section>
+  )
+}
+
+function PanoramaSection() {
+  return (
+    <section className="story-section story-section-muted" id="panorama">
+      <div className="container">
+        <SectionHeading
+          eyebrow="Panorama geral"
+          title="Poucos números bastam para sentir o peso."
+          text="Recorte: BRs brasileiras, 2023 a 2025. Não é todo o trânsito nacional."
+        />
+
+        <div className="panorama-layout">
+          <Reveal className="impact-panel">
+            <span className="impact-kicker">Vítimas fatais</span>
+            <strong className="impact-number">
+              <CountUp value={totals.deaths} duration={1600} />
+            </strong>
+            <p>Não são só ocorrências. São viagens interrompidas.</p>
+          </Reveal>
+
+          <div className="stats-grid">
+            {panoramaCards.map((item, index) => (
+              <Reveal key={item.label} className="stat-card" delay={0.06 + index * 0.05}>
+                <item.icon size={18} />
+                <span>{item.label}</span>
+                <strong>
+                  <CountUp value={item.value} duration={1500} />
+                </strong>
+                <p>{item.note}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -236,23 +671,29 @@ function EvolutionSection() {
   const [mode, setMode] = useState('accidents')
   const current = yearlyModes[mode]
   const max = Math.max(...yearlyData.map((item) => item[mode]))
-  const firstYear = yearlyData[0][mode]
-  const lastYear = yearlyData[yearlyData.length - 1][mode]
-  const change = ((lastYear - firstYear) / firstYear) * 100
-
-  const modeItems = Object.entries(yearlyModes).map(([id, item]) => ({ id, tabLabel: item.label }))
 
   return (
     <section className="story-section" id="evolucao">
       <div className="container">
         <SectionHeading
-          eyebrow="Evolução"
-          title="Os anos mudam. O alerta continua."
-          text="Uma leitura curta para mostrar que o problema segue alto demais dentro do recorte federal."
+          eyebrow="Evolução anual"
+          title="Os anos mudam. O cenário segue pesado."
+          text="Série anual das BRs monitoradas pela PRF. Leitura rápida, sem excesso."
         />
 
         <Reveal className="evolution-panel">
-          <SegmentedMetricTabs items={modeItems} activeId={mode} onChange={setMode} ariaLabel="Métricas anuais" />
+          <div className="tab-row" role="tablist" aria-label="Métricas anuais">
+            {Object.entries(yearlyModes).map(([key, item]) => (
+              <button
+                key={key}
+                type="button"
+                className={key === mode ? 'active' : ''}
+                onClick={() => setMode(key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
 
           <div className="evolution-layout">
             <AnimatePresence mode="wait">
@@ -262,49 +703,169 @@ function EvolutionSection() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.24 }}
+                transition={{ duration: 0.22 }}
               >
-                <span className="micro-label">Leitura direta</span>
+                <span className="eyebrow">Leitura direta</span>
                 <h3>{current.title}</h3>
                 <p>{current.text}</p>
                 <strong>{current.insight}</strong>
-
-                <div className="evolution-badges">
-                  <article>
-                    <span>2023</span>
-                    <strong>{number.format(firstYear)}</strong>
-                  </article>
-                  <article>
-                    <span>2025</span>
-                    <strong>{number.format(lastYear)}</strong>
-                  </article>
-                  <article>
-                    <span>Variação</span>
-                    <strong>{`${change >= 0 ? '+' : ''}${change.toFixed(1).replace('.', ',')}%`}</strong>
-                  </article>
-                </div>
               </motion.div>
             </AnimatePresence>
 
             <div className={`bars bars-${current.accent}`}>
-              {yearlyData.map((item, index) => (
-                <div key={item.year} className={index === 1 ? 'bar-card bar-card-focus' : 'bar-card'}>
-                  <span>{item.year}</span>
+              {yearlyData.map((item) => (
+                <div key={item.year} className="bar-card">
                   <div className="bar-shell">
-                    <motion.span
-                      className="bar-fill"
-                      initial={{ height: 0 }}
-                      whileInView={{ height: `${(item[mode] / max) * 100}%` }}
-                      viewport={{ once: true, amount: 0.35 }}
-                      transition={{ duration: 0.65, delay: 0.06 + index * 0.08, ease: [0.22, 1, 0.36, 1] }}
-                    />
+                    <span className="bar-fill" style={{ height: `${(item[mode] / max) * 100}%` }} />
                   </div>
                   <strong>{number.format(item[mode])}</strong>
+                  <span>{item.year}</span>
                 </div>
               ))}
             </div>
           </div>
         </Reveal>
+      </div>
+    </section>
+  )
+}
+
+function Ranking({ data, unit }) {
+  const max = Math.max(...data.map((item) => item.value))
+
+  return (
+    <div className="ranking-list">
+      {data.map((item, index) => (
+        <article key={item.label} className="ranking-item">
+          <div className="ranking-copy">
+            <span>{String(index + 1).padStart(2, '0')}</span>
+            <div>
+              <strong>{item.label}</strong>
+              <p>{item.note}</p>
+            </div>
+            <em>{item.percent ? `${decimal.format(item.value)}%` : number.format(item.value)}</em>
+          </div>
+          <div className="ranking-track" aria-label={`${item.label}: ${item.value} ${unit}`}>
+            <span style={{ width: `${(item.value / max) * 100}%` }} />
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function RiskSection() {
+  const [active, setActive] = useState('causes')
+  const current = riskTabs[active]
+
+  return (
+    <section className="story-section story-section-muted" id="riscos">
+      <div className="container">
+        <SectionHeading
+          eyebrow="O que mais pesa"
+          title="Ver padrões ajuda a entender onde o risco cresce."
+          text="Causas, tipos, letalidade, padrões e território. Tudo em leitura curta e direta."
+        />
+
+        <Reveal className="risk-panel">
+          <div className="tab-row tab-row-wrap" role="tablist" aria-label="Leituras de risco">
+            {Object.entries(riskTabs).map(([key, item]) => (
+              <button
+                key={key}
+                type="button"
+                className={key === active ? 'active' : ''}
+                onClick={() => setActive(key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="risk-layout">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active}
+                className="risk-copy"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.22 }}
+              >
+                <span className="eyebrow">Leitura ativa</span>
+                <h3>{current.title}</h3>
+                <p>{current.text}</p>
+                <strong>{current.insight}</strong>
+              </motion.div>
+            </AnimatePresence>
+
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${active}-ranking`}
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.24 }}
+              >
+                <Ranking data={current.data} unit={current.unit} />
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  )
+}
+
+function HumanSection() {
+  return (
+    <section className="story-section" id="humano">
+      <div className="container">
+        <SectionHeading
+          eyebrow="Fator humano"
+          title="Quando atenção, reação e decisão aparecem tanto, o alerta é inevitável."
+          text="Leitura analítica para conscientização. Não substitui a classificação oficial da PRF."
+        />
+
+        <div className="human-layout">
+          <Reveal className="human-ring-card">
+            <div className="ring-shell" style={{ '--ring-end': `${humanSignal.percent * 3.6}deg` }}>
+              <strong>
+                <CountUp value={humanSignal.percent} percent />
+              </strong>
+            </div>
+            <div className="human-copy">
+              <span className="eyebrow">Forte sinal humano</span>
+              <h3>Mais da metade do recorte entra nessa leitura.</h3>
+              <p>
+                Grupo com sinais recorrentes de atenção insuficiente, reação tardia ou decisão imprudente.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="human-cards">
+            <Reveal className="human-card" delay={0.06}>
+              <span>Volume</span>
+              <strong>
+                <CountUp value={humanSignal.total} />
+              </strong>
+              <p>acidentes com forte sinal de falha humana.</p>
+            </Reveal>
+
+            <Reveal className="human-card" delay={0.1}>
+              <span>Ritmo diário</span>
+              <strong>
+                <CountUp value={humanSignal.perDay} />
+              </strong>
+              <p>casos por dia, em média.</p>
+            </Reveal>
+
+            <Reveal className="human-card human-card-accent" delay={0.14}>
+              <span>Mensagem</span>
+              <strong>Dirigir com prudência ainda é uma das maiores proteções.</strong>
+              <p>Não é juridiquês. É cuidado real na estrada.</p>
+            </Reveal>
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -348,92 +909,87 @@ function TopViewCar({ tone }) {
 }
 
 function CollisionSection() {
-  const [active, setActive] = useState(0)
   const [started, setStarted] = useState(false)
-  const current = collisionSteps[active]
+  const [active, setActive] = useState(0)
+  const current = storySteps[active]
 
   useEffect(() => {
-    if (!started || active >= collisionSteps.length - 1) return undefined
-    const timer = window.setTimeout(() => setActive((value) => value + 1), 3000)
-    return () => window.clearTimeout(timer)
+    if (!started || active >= storySteps.length - 1) return undefined
+    const timer = setTimeout(() => setActive((value) => value + 1), 2600)
+    return () => clearTimeout(timer)
   }, [active, started])
 
   return (
-    <section className="story-section story-section-collision" id="colisao">
+    <section className="story-section story-section-muted" id="colisao">
       <div className="container">
         <SectionHeading
-          eyebrow="Cena de colisão"
+          eyebrow="Experiência narrativa"
           title="Nem toda vítima errou."
-          text="Uma cena curta para mostrar como a imprudência de alguém pode atingir quem seguia corretamente."
+          text="Uma cena curta para lembrar algo simples: a imprudência de alguém pode atingir quem estava no caminho certo."
         />
 
-        <div className="collision-layout">
-          <Reveal className="collision-scene-card">
-            <div className="drive-scene" data-started={started} data-step={active}>
-              <div className="scene-road" />
-              <div className="scene-divider" />
-              <div className="scene-glow scene-glow-a" />
-              <div className="scene-glow scene-glow-b" />
-              <div className="scene-invasion" />
-              <div className="scene-impact">
-                <span className="impact-core" />
-                <span className="impact-wave" />
-                <span className="impact-wave impact-wave-b" />
-                <span className="impact-flash" />
-              </div>
-
-              <div className="lane-tag lane-tag-left">Fluxo oposto</div>
-              <div className="lane-tag lane-tag-right">Sua faixa</div>
-
-              <div className="car car-user">
-                <TopViewCar tone="user" />
-              </div>
-              <div className="car car-lead">
-                <TopViewCar tone="lead" />
-              </div>
-              <div className="car car-risk">
-                <TopViewCar tone="risk" />
-              </div>
-
-              {!started ? (
-                <button type="button" className="scene-start" onClick={() => setStarted(true)}>
-                  <Play size={17} />
-                  Iniciar cena
-                </button>
-              ) : null}
-
-              <div className="scene-caption">
-                <span>Etapa {current.id}</span>
-                <strong>{current.title}</strong>
-              </div>
+        <Reveal className="collision-layout">
+          <div className="drive-scene" data-started={started} data-step={active}>
+            <div className="scene-road" />
+            <div className="scene-divider" />
+            <div className="scene-glow scene-glow-a" />
+            <div className="scene-glow scene-glow-b" />
+            <div className="scene-invasion" />
+            <div className="scene-impact">
+              <span className="impact-core" />
+              <span className="impact-wave" />
+              <span className="impact-wave impact-wave-b" />
             </div>
-          </Reveal>
+            <div className="lane-tag lane-tag-left">Fluxo oposto</div>
+            <div className="lane-tag lane-tag-right">Sua faixa</div>
+            <div className="car car-user">
+              <TopViewCar tone="user" />
+            </div>
+            <div className="car car-lead">
+              <TopViewCar tone="lead" />
+            </div>
+            <div className="car car-risk">
+              <TopViewCar tone="risk" />
+            </div>
 
-          <Reveal className="collision-copy-card" delay={0.08}>
-            <div className="story-progress" aria-label={`Etapa ${active + 1} de ${collisionSteps.length}`}>
-              <span style={{ width: `${((active + 1) / collisionSteps.length) * 100}%` }} />
+            {!started ? (
+              <button type="button" className="scene-start" onClick={() => setStarted(true)}>
+                <Play size={18} />
+                Iniciar cena
+              </button>
+            ) : null}
+
+            <div className="scene-caption">
+              <span>Etapa {current.id}</span>
+              <strong>{current.title}</strong>
+            </div>
+          </div>
+
+          <div className="collision-copy">
+            <div className="story-progress" aria-label={`Etapa ${active + 1} de ${storySteps.length}`}>
+              <span style={{ width: `${((active + 1) / storySteps.length) * 100}%` }} />
             </div>
 
             <AnimatePresence mode="wait">
               <motion.article
                 key={current.id}
-                className="collision-copy"
+                className="story-panel"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.24 }}
+                transition={{ duration: 0.22 }}
               >
-                <span className="micro-label">Leitura da cena</span>
+                <span className="eyebrow">Leitura da cena</span>
                 <h3>{current.title}</h3>
                 <p>{current.text}</p>
                 <strong>{current.note}</strong>
               </motion.article>
             </AnimatePresence>
 
-            <div className="scene-stepper">
-              {collisionSteps.map((step, index) => (
+            <div className="story-step-buttons">
+              {storySteps.map((item, index) => (
                 <button
-                  key={step.id}
+                  key={item.id}
                   type="button"
                   className={index === active ? 'active' : ''}
                   onClick={() => {
@@ -441,18 +997,43 @@ function CollisionSection() {
                     setActive(index)
                   }}
                 >
-                  <span>{step.id}</span>
-                  {step.title}
+                  <span>{item.id}</span>
+                  {item.title}
                 </button>
               ))}
             </div>
 
-            <div className="collision-note">
-              <p>A imprudência pode atingir quem fez tudo certo.</p>
-              <strong>Do outro lado da faixa, também existe uma vida.</strong>
+            <div className="story-cta">
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={active === 0}
+                onClick={() => setActive((value) => Math.max(0, value - 1))}
+              >
+                <ChevronLeft size={16} />
+                Anterior
+              </button>
+
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={active === storySteps.length - 1}
+                onClick={() => {
+                  setStarted(true)
+                  setActive((value) => Math.min(storySteps.length - 1, value + 1))
+                }}
+              >
+                Próxima
+                <ChevronRight size={16} />
+              </button>
             </div>
-          </Reveal>
-        </div>
+
+            <div className={active === storySteps.length - 1 ? 'manifesto manifesto-final' : 'manifesto'}>
+              <p>Uma ultrapassagem indevida pode atingir quem fez tudo certo.</p>
+              <strong>{active === storySteps.length - 1 ? 'NÃO SEJA O IMPRUDENTE.' : 'Dirigir com prudência protege mais do que a sua rota.'}</strong>
+            </div>
+          </div>
+        </Reveal>
       </div>
     </section>
   )
@@ -463,30 +1044,38 @@ function ClosingSection() {
     <section className="story-section" id="fechamento">
       <div className="container">
         <Reveal className="closing-panel">
-          <span className="micro-label">Fechamento</span>
-          <h2>O problema não é isolado. Ele se repete, ocupa território e continua depois da batida.</h2>
-          <p>
-            Os dados da PRF mostram um recorte claro: rodovias federais brasileiras entre 2023 e 2025. Mesmo sem
-            representar todo o trânsito do país, o peso humano já é grave demais.
-          </p>
+          <span className="eyebrow">Fechamento</span>
+          <h2>Dirija com mais prudência.</h2>
+          <p>Nas BRs, um erro pode mudar várias vidas. Não seja o imprudente.</p>
 
-          <div className="closing-grid">
+          <div className="closing-statements">
             <article>
-              <strong>Isso afeta vidas reais, todos os dias.</strong>
-              <span>Ritmo, mapa e consequência apontam para a mesma verdade.</span>
+              <strong>Em casa, sempre tem alguém esperando.</strong>
+              <span>Voltar em segurança também é um ato de cuidado.</span>
             </article>
             <article>
-              <strong>A prudência ainda é uma decisão de cuidado.</strong>
-              <span>No volante, ela protege gente que você conhece e gente que você nunca viu.</span>
+              <strong>Não é todo o trânsito brasileiro.</strong>
+              <span>É apenas o recorte das BRs monitoradas pela PRF. E já é grave o bastante.</span>
             </article>
           </div>
 
-          <div className="closing-actions">
-            <a href="#abertura" className="button button-primary">
-              Voltar ao início
-              <ArrowUp size={16} />
-            </a>
-          </div>
+          <details className="methodology">
+            <summary>
+              <MapPinned size={16} />
+              Fonte e recorte
+            </summary>
+            <div className="methodology-content">
+              <p>Fonte: Polícia Rodoviária Federal.</p>
+              <p>Recorte: acidentes em rodovias federais brasileiras entre 2023 e 2025.</p>
+              <p>Este site não representa todo o trânsito do Brasil.</p>
+              <p>A leitura do fator humano é analítica e voltada à conscientização.</p>
+            </div>
+          </details>
+
+          <a href="#abertura" className="button button-primary closing-button">
+            Voltar ao início
+            <ArrowUp size={16} />
+          </a>
         </Reveal>
       </div>
     </section>
@@ -506,10 +1095,12 @@ export default function App() {
 
       <HeroSection />
 
-      <main className="site-main">
-        <DayOnBRsSection />
+      <main>
+        <RhythmSection />
+        <PanoramaSection />
         <EvolutionSection />
-        <BrazilMapSection />
+        <RiskSection />
+        <HumanSection />
         <CollisionSection />
         <ClosingSection />
       </main>
