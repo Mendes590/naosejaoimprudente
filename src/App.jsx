@@ -130,9 +130,10 @@ function JourneyControls({ active }) {
   const index = Math.max(0, journey.findIndex((item) => item.id === active))
   const previous = journey[index - 1]
   const next = journey[index + 1]
+  const stateClass = previous && next ? 'journey-controls-dual' : 'journey-controls-single'
 
   return (
-    <nav className="journey-controls" aria-label="Controles da jornada">
+    <nav className={`journey-controls ${stateClass}`} aria-label="Controles da jornada">
       {previous ? (
         <a href={`#${previous.id}`} className="journey-control">
           <ChevronLeft size={15} />
@@ -164,8 +165,8 @@ function HeroSection() {
           <span className="hero-context">PRF · BRs brasileiras · 2023 a 2025</span>
           <h1>Todos os dias, o risco encontra pessoas reais nas BRs brasileiras.</h1>
           <p>
-            Este não é um painel frio. É uma leitura narrativa sobre recorrência, território e consequência humana
-            nas rodovias federais brasileiras.
+            Este não é um painel frio. É uma leitura narrativa sobre recorrência, território e consequência humana nas
+            rodovias federais brasileiras.
           </p>
 
           <div className="hero-pill-row">
@@ -251,12 +252,7 @@ function EvolutionSection() {
         />
 
         <Reveal className="evolution-panel">
-          <SegmentedMetricTabs
-            items={modeItems}
-            activeId={mode}
-            onChange={setMode}
-            ariaLabel="Métricas anuais"
-          />
+          <SegmentedMetricTabs items={modeItems} activeId={mode} onChange={setMode} ariaLabel="Métricas anuais" />
 
           <div className="evolution-layout">
             <AnimatePresence mode="wait">
@@ -510,7 +506,7 @@ export default function App() {
 
       <HeroSection />
 
-      <main>
+      <main className="site-main">
         <DayOnBRsSection />
         <EvolutionSection />
         <BrazilMapSection />

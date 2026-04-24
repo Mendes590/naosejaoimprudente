@@ -48,12 +48,7 @@ export function BrazilMapSection() {
 
         <div className="map-layout">
           <Reveal className="map-shell">
-            <SegmentedMetricTabs
-              items={items}
-              activeId={metricKey}
-              onChange={setMetricKey}
-              ariaLabel="Métrica do mapa"
-            />
+            <SegmentedMetricTabs items={items} activeId={metricKey} onChange={setMetricKey} ariaLabel="Métrica do mapa" />
 
             <div className="map-card">
               <svg className="brazil-map" viewBox={brazil.viewBox} role="img" aria-label="Mapa do Brasil por estado">
