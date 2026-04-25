@@ -326,6 +326,54 @@ const collisionSceneStates = {
   },
 }
 
+const collisionSceneStatesMobile = {
+  '01': {
+    focus: 0.14,
+    trail: 0.02,
+    invasion: 0.02,
+    impact: 0,
+    user: { x: 0, y: -4, rotate: -1, scale: 0.95 },
+    lead: { x: 0, y: 12, rotate: 180, scale: 0.94 },
+    risk: { x: 0, y: 2, rotate: 180, scale: 0.94 },
+  },
+  '02': {
+    focus: 0.2,
+    trail: 0.12,
+    invasion: 0.18,
+    impact: 0,
+    user: { x: -2, y: -14, rotate: -2, scale: 0.95 },
+    lead: { x: 2, y: 18, rotate: 180, scale: 0.94 },
+    risk: { x: 14, y: 18, rotate: 176, scale: 0.96 },
+  },
+  '03': {
+    focus: 0.3,
+    trail: 0.34,
+    invasion: 0.5,
+    impact: 0,
+    user: { x: -6, y: -24, rotate: -3, scale: 0.95 },
+    lead: { x: 4, y: 26, rotate: 180, scale: 0.94 },
+    risk: { x: 36, y: 54, rotate: 164, scale: 0.97 },
+  },
+  '04': {
+    focus: 0.48,
+    trail: 0.72,
+    invasion: 0.94,
+    impact: 0.96,
+    user: { x: -12, y: -42, rotate: -7, scale: 0.94 },
+    lead: { x: 4, y: 32, rotate: 181, scale: 0.94 },
+    risk: { x: 78, y: 104, rotate: 148, scale: 0.97 },
+  },
+  '05': {
+    focus: 0.28,
+    trail: 0.32,
+    invasion: 0.3,
+    impact: 0.68,
+    user: { x: -18, y: -48, rotate: -10, scale: 0.92 },
+    lead: { x: 8, y: 38, rotate: 184, scale: 0.94 },
+    risk: { x: 80, y: 106, rotate: 142, scale: 0.96 },
+  },
+}
+
 function formatDuration(minutes) {
   if (minutes < 60) return `${Math.round(minutes)} min`
   const hours = Math.floor(minutes / 60)
@@ -333,28 +381,94 @@ function formatDuration(minutes) {
   return `${hours}h${String(remaining).padStart(2, '0')}`
 }
 
-function useActiveSection(ids) {
+function useViewportMatch(query) {
+  const getMatches = () => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia(query).matches
+  }
+
+  const [matches, setMatches] = useState(getMatches)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const media = window.matchMedia(query)
+    const onChange = (event) => setMatches(event.matches)
+
+    setMatches(media.matches)
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [query])
+
+  return matches
+}
+
+function useActiveSection(ids, isMobile) {
   const [active, setActive] = useState(ids[0])
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+    if (typeof window === 'undefined') return undefined
 
-        if (visible[0]) setActive(visible[0].target.id)
-      },
-      { rootMargin: '-28% 0px -48% 0px', threshold: [0.2, 0.35, 0.55, 0.72] },
-    )
+    let ticking = false
+    let frame = 0
 
-    ids.forEach((id) => {
-      const node = document.getElementById(id)
-      if (node) observer.observe(node)
-    })
+    const getCssNumber = (name, fallback) => {
+      const value = getComputedStyle(document.documentElement).getPropertyValue(name)
+      const parsed = Number.parseFloat(value)
+      return Number.isFinite(parsed) ? parsed : fallback
+    }
 
-    return () => observer.disconnect()
-  }, [ids])
+    const updateActive = () => {
+      ticking = false
+
+      const headerOffset = isMobile ? getCssNumber('--mobile-topbar-height', 56) : getCssNumber('--topbar-height', 60)
+      const bottomOffset = isMobile
+        ? getCssNumber('--mobile-bottom-controls-height', 74) + 12
+        : getCssNumber('--journey-safe-height', 76)
+      const viewportTarget = isMobile
+        ? headerOffset + (window.innerHeight - headerOffset - bottomOffset) * 0.42
+        : window.innerHeight * 0.48
+
+      let bestId = ids[0]
+      let bestDistance = Number.POSITIVE_INFINITY
+
+      ids.forEach((id) => {
+        const node = document.getElementById(id)
+        if (!node) return
+
+        const rect = node.getBoundingClientRect()
+        const sectionCenter = rect.top + rect.height / 2
+        const containsTarget = rect.top <= viewportTarget && rect.bottom >= viewportTarget
+        const distance = containsTarget ? 0 : Math.abs(sectionCenter - viewportTarget)
+
+        if (distance < bestDistance) {
+          bestDistance = distance
+          bestId = id
+        }
+      })
+
+      setActive((current) => (current === bestId ? current : bestId))
+    }
+
+    const requestUpdate = () => {
+      if (ticking) return
+      ticking = true
+      frame = window.requestAnimationFrame(updateActive)
+    }
+
+    updateActive()
+
+    window.addEventListener('scroll', requestUpdate, { passive: true })
+    window.addEventListener('resize', requestUpdate)
+    window.addEventListener('hashchange', requestUpdate)
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', requestUpdate)
+      window.removeEventListener('resize', requestUpdate)
+      window.removeEventListener('hashchange', requestUpdate)
+    }
+  }, [ids, isMobile])
 
   return active
 }
@@ -615,7 +729,27 @@ function PanoramaCompare({ primary, secondary }) {
   )
 }
 
-function PanoramaCardVisual({ item }) {
+function PanoramaCardVisual({ item, isMobile }) {
+  if (isMobile && item.type === 'trend') {
+    return (
+      <div className="panorama-mobile-summary" aria-hidden="true">
+        <span>Pico em 2024</span>
+        <strong>{number.format(yearlyData[2].accidents)}</strong>
+        <small>2025 ficou 0,9% abaixo de 2024.</small>
+      </div>
+    )
+  }
+
+  if (isMobile && item.type === 'flow') {
+    return (
+      <div className="panorama-mobile-summary" aria-hidden="true">
+        <span>Média por ocorrência</span>
+        <strong>{decimal.format(peoplePerAccident)} pessoas</strong>
+        <small>{number.format(totals.involved)} envolvidos no período.</small>
+      </div>
+    )
+  }
+
   if (item.type === 'trend') {
     return <PanoramaAccidentsTrend values={yearlyData.map(({ year, accidents }) => ({ label: year, value: accidents }))} />
   }
@@ -636,7 +770,7 @@ function PanoramaCardVisual({ item }) {
   )
 }
 
-function PanoramaMetricCard({ item, index }) {
+function PanoramaMetricCard({ item, index, isMobile }) {
   const emphasisClass = item.type === 'trend' || item.type === 'ring' ? ' panorama-metric-card-emphasis' : ''
 
   return (
@@ -651,7 +785,7 @@ function PanoramaMetricCard({ item, index }) {
         </strong>
       </div>
       <p>{item.meta}</p>
-      <PanoramaCardVisual item={item} />
+      <PanoramaCardVisual item={item} isMobile={isMobile} />
       {item.insight ? <small>{item.insight}</small> : null}
     </Reveal>
   )
@@ -851,17 +985,20 @@ function SectionHeading({ eyebrow, title, text }) {
   )
 }
 
-function TopProgress({ active, progress }) {
+function TopProgress({ active, progress, isMobile }) {
   const index = Math.max(0, journey.findIndex((item) => item.id === active))
+  const current = journey[index] ?? journey[0]
 
   return (
-    <header className="topbar">
+    <header className={`topbar${isMobile ? ' topbar-mobile' : ''}`}>
       <div className="topbar-progress" style={{ width: `${progress}%` }} />
       <div className="container topbar-inner">
         <a href="#abertura" className="brand">
           <span className="brand-dot" />
-          BRs em risco
+          <span className="brand-text">BRs em risco</span>
         </a>
+
+        {isMobile ? <span className="topbar-current">{current.short}</span> : null}
 
         <nav className="topbar-nav" aria-label="Navegação da experiência">
           {journey.map((item, itemIndex) => (
@@ -904,32 +1041,46 @@ function SideRail({ active }) {
   )
 }
 
-function JourneyControls({ active }) {
+function JourneyControls({ active, isMobile, onNavigate }) {
   const index = Math.max(0, journey.findIndex((item) => item.id === active))
   const previous = journey[index - 1]
   const next = journey[index + 1]
+  const fallback = journey[0]
+  const stateClass = !previous ? ' is-first' : !next ? ' is-last' : ''
 
   return (
-    <nav className="journey-controls" aria-label="Controles da jornada">
+    <nav className={`journey-controls${isMobile ? ' journey-controls-mobile' : ''}${stateClass}`} aria-label="Controles da jornada">
       {previous ? (
-        <a href={`#${previous.id}`} className="journey-control">
+        <a
+          href={`#${previous.id}`}
+          className="journey-control journey-control-back"
+          onClick={(event) => {
+            event.preventDefault()
+            onNavigate(previous.id)
+          }}
+        >
           <ChevronLeft size={15} />
           Voltar
         </a>
       ) : null}
-      {next ? (
-        <a href={`#${next.id}`} className="journey-control primary">
-          Continuar
-          <ChevronRight size={15} />
-        </a>
-      ) : null}
+      <a
+        href={`#${(next ?? fallback).id}`}
+        className="journey-control journey-control-next primary"
+        onClick={(event) => {
+          event.preventDefault()
+          onNavigate((next ?? fallback).id)
+        }}
+      >
+        {next ? 'Continuar' : 'Início'}
+        {next ? <ChevronRight size={15} /> : <ArrowUp size={15} />}
+      </a>
     </nav>
   )
 }
 
-function HeroSection() {
+function HeroSection({ isMobile }) {
   return (
-    <section className="hero-section" id="abertura">
+    <section className={`hero-section${isMobile ? ' hero-section-mobile' : ''}`} id="abertura">
       <div className="hero-backdrop" aria-hidden="true">
         <span className="hero-glow hero-glow-a" />
         <span className="hero-glow hero-glow-b" />
@@ -937,7 +1088,7 @@ function HeroSection() {
         <span className="hero-road-line" />
       </div>
 
-      <div className="container hero-layout">
+      <div className={`container hero-layout${isMobile ? ' hero-layout-mobile' : ''}`}>
         <Reveal className="hero-copy">
           <span className="eyebrow">PRF · rodovias federais brasileiras · 2023 a 2025</span>
           <h1>Nas BRs, um erro pode mudar várias vidas.</h1>
@@ -946,7 +1097,7 @@ function HeroSection() {
             Não é todo o trânsito do Brasil. E já é grave o bastante.
           </p>
 
-          <div className="hero-pill-row">
+          <div className={`hero-pill-row${isMobile ? ' hero-pill-row-mobile' : ''}`}>
             {heroHighlights.map((item) => (
               <span key={item} className="hero-pill">
                 {item}
@@ -954,7 +1105,7 @@ function HeroSection() {
             ))}
           </div>
 
-          <div className="hero-actions">
+          <div className={`hero-actions${isMobile ? ' hero-actions-mobile' : ''}`}>
             <a href="#ritmo" className="button button-primary">
               Sentir o ritmo
               <ArrowRight size={16} />
@@ -1006,7 +1157,7 @@ function HeroSection() {
   )
 }
 
-function RhythmSection() {
+function RhythmSection({ isMobile }) {
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
   const current = rhythmCards[active]
@@ -1030,7 +1181,7 @@ function RhythmSection() {
           text="Transformar volume em tempo deixa a repetição mais clara. Nas BRs analisadas, o risco segue rodando."
         />
 
-        <div className="rhythm-layout">
+        <div className={`rhythm-layout${isMobile ? ' rhythm-layout-mobile rhythm-mobile-stack' : ''}`}>
           <Reveal className="feature-panel feature-panel-large">
             <span className="metric-label">{current.label}</span>
             <AnimatePresence mode="wait">
@@ -1052,34 +1203,69 @@ function RhythmSection() {
             </div>
           </Reveal>
 
-          <Reveal className="rhythm-sidebar" delay={0.08}>
-            <button
-              type="button"
-              className="toggle-button"
-              aria-pressed={paused}
-              aria-label={paused ? 'Retomar animação do ritmo' : 'Pausar animação do ritmo'}
-              onClick={() => setPaused((value) => !value)}
-            >
-              {paused ? <Play size={15} /> : <Pause size={15} />}
-              {paused ? 'Retomar' : 'Pausar'}
-            </button>
+          {isMobile ? (
+            <Reveal className="rhythm-mobile-stack" delay={0.08}>
+              <div className="rhythm-mobile-toolbar">
+                <button
+                  type="button"
+                  className="toggle-button rhythm-pause-pill"
+                  aria-pressed={paused}
+                  aria-label={paused ? 'Retomar animação do ritmo' : 'Pausar animação do ritmo'}
+                  onClick={() => setPaused((value) => !value)}
+                >
+                  {paused ? <Play size={15} /> : <Pause size={15} />}
+                  {paused ? 'Retomar' : 'Pausar'}
+                </button>
+              </div>
 
-            {rhythmCards.map((item, index) => (
+              <div className="rhythm-mobile-metrics">
+                {rhythmCards.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={index === active ? 'rhythm-card active' : 'rhythm-card'}
+                    onClick={() => {
+                      setActive(index)
+                      setPaused(true)
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <p>{item.microcopy}</p>
+                  </button>
+                ))}
+              </div>
+            </Reveal>
+          ) : (
+            <Reveal className="rhythm-sidebar" delay={0.08}>
               <button
-                key={item.id}
                 type="button"
-                className={index === active ? 'rhythm-card active' : 'rhythm-card'}
-                onClick={() => {
-                  setActive(index)
-                  setPaused(true)
-                }}
+                className="toggle-button"
+                aria-pressed={paused}
+                aria-label={paused ? 'Retomar animação do ritmo' : 'Pausar animação do ritmo'}
+                onClick={() => setPaused((value) => !value)}
               >
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-                <p>{item.microcopy}</p>
+                {paused ? <Play size={15} /> : <Pause size={15} />}
+                {paused ? 'Retomar' : 'Pausar'}
               </button>
-            ))}
-          </Reveal>
+
+              {rhythmCards.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={index === active ? 'rhythm-card active' : 'rhythm-card'}
+                  onClick={() => {
+                    setActive(index)
+                    setPaused(true)
+                  }}
+                >
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <p>{item.microcopy}</p>
+                </button>
+              ))}
+            </Reveal>
+          )}
         </div>
 
       </div>
@@ -1087,9 +1273,9 @@ function RhythmSection() {
   )
 }
 
-function PanoramaSectionCompact() {
+function PanoramaSectionCompact({ isMobile }) {
   return (
-    <section className="story-section story-section-muted" id="panorama">
+    <section className={`story-section story-section-muted${isMobile ? ' story-section-mobile' : ''}`} id="panorama">
       <div className="container">
         <SectionHeading
           eyebrow="Panorama geral"
@@ -1097,8 +1283,8 @@ function PanoramaSectionCompact() {
           text="BRs federais brasileiras · 2023 a 2025"
         />
 
-        <div className="panorama-stage panorama-stage-compact">
-          <Reveal className="panorama-hero panorama-hero-compact">
+        <div className={`panorama-stage panorama-stage-compact${isMobile ? ' panorama-stage-mobile' : ''}`}>
+          <Reveal className={`panorama-hero panorama-hero-compact${isMobile ? ' panorama-hero-mobile' : ''}`}>
             <div className="panorama-hero-copy panorama-hero-copy-compact">
               <span className="impact-kicker">Vítimas fatais</span>
               <h3 className="panorama-hero-title panorama-hero-title-compact">Total consolidado no recorte.</h3>
@@ -1110,9 +1296,9 @@ function PanoramaSectionCompact() {
             </div>
           </Reveal>
 
-          <div className="panorama-side-grid panorama-side-grid-compact">
+          <div className={`panorama-side-grid panorama-side-grid-compact${isMobile ? ' panorama-side-grid-mobile' : ''}`}>
             {panoramaCards.map((item, index) => (
-              <PanoramaMetricCard key={item.label} item={item} index={index} />
+              <PanoramaMetricCard key={item.label} item={item} index={index} isMobile={isMobile} />
             ))}
           </div>
         </div>
@@ -1121,7 +1307,32 @@ function PanoramaSectionCompact() {
   )
 }
 
-function EvolutionSectionCompact() {
+function EvolutionMobileChart({ data, mode, accent }) {
+  const max = Math.max(...data.map((item) => item[mode]))
+  const peakYear = data.find((item) => item[mode] === max)?.year
+
+  return (
+    <div className={`evolution-mobile-list is-${accent}`} aria-label="Comparação anual da métrica selecionada">
+      {data.map((item) => {
+        const width = `${(item[mode] / max) * 100}%`
+        return (
+          <article key={item.year} className={`evolution-mobile-item${item.year === peakYear ? ' is-peak' : ''}`}>
+            <div className="evolution-mobile-head">
+              <span>{item.year}</span>
+              <strong>{number.format(item[mode])}</strong>
+            </div>
+            <div className="evolution-mobile-track" aria-hidden="true">
+              <span style={{ width }} />
+            </div>
+            <p>{item.year === peakYear ? 'Pico do período' : item.year === '2025' ? 'Segue muito alto' : 'Base ainda elevada'}</p>
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
+function EvolutionSectionCompact({ isMobile }) {
   const [mode, setMode] = useState('accidents')
   const current = {
     accidents: {
@@ -1166,7 +1377,7 @@ function EvolutionSectionCompact() {
           text="O volume segue alto no recorte federal."
         />
 
-        <Reveal className="evolution-panel evolution-panel-compact">
+        <Reveal className={`evolution-panel evolution-panel-compact${isMobile ? ' evolution-panel-mobile' : ''}`}>
           <div className="tab-row evolution-tabs" role="tablist" aria-label="Métricas anuais">
             {Object.entries(evolutionModesCompact).map(([key, item]) => (
               <button
@@ -1183,7 +1394,7 @@ function EvolutionSectionCompact() {
             ))}
           </div>
 
-          <div className="evolution-stage">
+          <div className={`evolution-stage${isMobile ? ' evolution-stage-mobile' : ''}`}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={`${mode}-chart`}
@@ -1207,7 +1418,11 @@ function EvolutionSectionCompact() {
                   </div>
                 </div>
 
-                <EvolutionTrendChart data={yearlyData} mode={mode} accent={current.accent} />
+                {isMobile ? (
+                  <EvolutionMobileChart data={yearlyData} mode={mode} accent={current.accent} />
+                ) : (
+                  <EvolutionTrendChart data={yearlyData} mode={mode} accent={current.accent} />
+                )}
               </motion.div>
             </AnimatePresence>
 
@@ -1253,18 +1468,18 @@ function EvolutionSectionCompact() {
   )
 }
 
-function Ranking({ data, unit }) {
+function Ranking({ data, unit, isMobile }) {
   const max = Math.max(...data.map((item) => item.value))
 
   return (
     <div className="ranking-list">
       {data.map((item, index) => (
-        <article key={item.label} className="ranking-item">
+        <article key={item.label} className={`ranking-item${isMobile ? ' ranking-item-mobile' : ''}`}>
           <div className="ranking-copy">
             <span>{String(index + 1).padStart(2, '0')}</span>
             <div>
               <strong>{item.label}</strong>
-              <p>{item.note}</p>
+              {!isMobile ? <p>{item.note}</p> : null}
             </div>
             <em>{item.percent ? `${decimal.format(item.value)}%` : number.format(item.value)}</em>
           </div>
@@ -1277,12 +1492,12 @@ function Ranking({ data, unit }) {
   )
 }
 
-function RiskSection() {
+function RiskSection({ isMobile }) {
   const [active, setActive] = useState('causes')
   const current = riskTabs[active]
 
   return (
-    <section className="story-section story-section-muted" id="riscos">
+    <section className={`story-section story-section-muted${isMobile ? ' story-section-mobile' : ''}`} id="riscos">
       <div className="container">
         <SectionHeading
           eyebrow="O que mais pesa"
@@ -1290,8 +1505,8 @@ function RiskSection() {
           text="Causas, tipos, letalidade, padrões e território. Tudo em leitura curta e direta."
         />
 
-        <Reveal className="risk-panel">
-          <div className="tab-row tab-row-wrap" role="tablist" aria-label="Leituras de risco">
+        <Reveal className={`risk-panel${isMobile ? ' risk-panel-mobile' : ''}`}>
+          <div className={`tab-row tab-row-wrap${isMobile ? ' risk-tabs-mobile' : ''}`} role="tablist" aria-label="Leituras de risco">
             {Object.entries(riskTabs).map(([key, item]) => (
               <button
                 key={key}
@@ -1306,7 +1521,7 @@ function RiskSection() {
             ))}
           </div>
 
-          <div className="risk-layout">
+          <div className={`risk-layout${isMobile ? ' risk-layout-mobile' : ''}`}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={active}
@@ -1331,7 +1546,7 @@ function RiskSection() {
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.24 }}
               >
-                <Ranking data={current.data} unit={current.unit} />
+                <Ranking data={current.data} unit={current.unit} isMobile={isMobile} />
               </motion.div>
             </AnimatePresence>
           </div>
@@ -1378,180 +1593,283 @@ function TopViewCar({ tone }) {
   )
 }
 
-function CollisionSection() {
-  const [started, setStarted] = useState(false)
+function CollisionSection({ isMobile, onExitSection }) {
+  const [started, setStarted] = useState(isMobile)
   const [active, setActive] = useState(0)
+  const lastStepIndex = storyStepsCompact.length - 1
   const current = storyStepsCompact[active]
-  const sceneState = collisionSceneStates[current.id]
+  const sceneStates = isMobile ? collisionSceneStatesMobile : collisionSceneStates
+  const sceneState = sceneStates[current.id]
+  const stepTitle = isMobile && current.id === '03' ? 'Ultrapassagem' : current.title
+  const isLastStep = active === lastStepIndex
 
   useEffect(() => {
-    if (!started || active >= storyStepsCompact.length - 1) return undefined
+    if (isMobile) setStarted(true)
+  }, [isMobile])
+
+  useEffect(() => {
+    if (isMobile || !started || isLastStep) return undefined
     const timer = setTimeout(() => setActive((value) => value + 1), COLLISION_STEP_DURATION)
     return () => clearTimeout(timer)
-  }, [active, started])
+  }, [active, isLastStep, isMobile, started])
+
+  const goToPreviousStep = () => {
+    setStarted(true)
+    setActive((value) => Math.max(0, value - 1))
+  }
+
+  const goToNextStep = () => {
+    setStarted(true)
+    setActive((value) => Math.min(lastStepIndex, value + 1))
+  }
+
+  const scene = (
+    <motion.div
+      className={`drive-scene drive-scene-premium${isMobile ? ' drive-scene-mobile collision-scene-card' : ''}`}
+      data-started={started}
+      data-step={current.id}
+      data-impact={current.id === '05' ? 'aftershock' : current.id === '04' ? 'impact' : 'none'}
+      animate={
+        current.id === '05'
+          ? { x: [0, -3, 4, -2, 1, 0], y: [0, 1, -2, 1, 0, 0] }
+          : { x: 0, y: 0 }
+      }
+      transition={
+        current.id === '05'
+          ? { duration: 0.58, ease: [0.22, 1, 0.36, 1] }
+          : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
+      }
+      style={{
+        '--scene-focus': sceneState.focus,
+        '--scene-trail': sceneState.trail,
+        '--scene-invasion': sceneState.invasion,
+        '--scene-impact': sceneState.impact,
+      }}
+    >
+      <div className="scene-road" />
+      <div className="scene-divider" />
+      <div className="scene-glow scene-glow-a" />
+      <div className="scene-glow scene-glow-b" />
+      <div className="scene-focus" />
+      <div className="scene-risk-trail" />
+      <div className="scene-invasion" />
+      <div className="scene-impact scene-impact-premium">
+        <span className="impact-core" />
+        <span className="impact-wave" />
+        <span className="impact-wave impact-wave-b" />
+      </div>
+      <div className="lane-tag lane-tag-left">Fluxo oposto</div>
+      <div className="lane-tag lane-tag-right">Sua faixa</div>
+      <motion.div
+        className="car car-user"
+        animate={started ? sceneState.user : sceneStates['01'].user}
+        transition={{ duration: current.id === '04' ? 0.42 : 0.58, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <TopViewCar tone="user" />
+      </motion.div>
+      <motion.div
+        className="car car-lead"
+        animate={started ? sceneState.lead : sceneStates['01'].lead}
+        transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <TopViewCar tone="lead" />
+      </motion.div>
+      <motion.div
+        className="car car-risk"
+        animate={started ? sceneState.risk : sceneStates['01'].risk}
+        transition={{ duration: current.id === '04' ? 0.38 : 0.64, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <TopViewCar tone="risk" />
+      </motion.div>
+
+      {!isMobile && !started ? (
+        <button type="button" className="scene-start" onClick={() => setStarted(true)}>
+          <Play size={18} />
+          Iniciar cena
+        </button>
+      ) : null}
+
+      <div className="scene-caption">
+        <span>Etapa {current.id}</span>
+        {!isMobile ? <strong>{stepTitle}</strong> : null}
+      </div>
+    </motion.div>
+  )
+
+  const storyPanel = (
+    <AnimatePresence mode="wait">
+      <motion.article
+        key={current.id}
+        className="story-panel"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.22 }}
+      >
+        <span className="eyebrow">Leitura da cena</span>
+        <h3>{current.title}</h3>
+        <p>{current.text}</p>
+        <strong>{current.note}</strong>
+      </motion.article>
+    </AnimatePresence>
+  )
 
   return (
-    <section className="story-section story-section-muted" id="colisao">
+    <section className={`story-section story-section-muted${isMobile ? ' story-section-mobile collision-section-mobile' : ''}`} id="colisao">
       <div className="container">
         <SectionHeading
-          eyebrow="Experiência narrativa"
+          eyebrow={isMobile ? 'Colisão' : 'Experiência narrativa'}
           title="Nem toda vítima errou."
-          text="Uma cena curta para lembrar algo simples: a imprudência de alguém pode atingir quem estava no caminho certo."
+          text={isMobile ? 'Uma decisão errada pode atingir quem seguia certo.' : 'Uma cena curta para lembrar algo simples: a imprudência de alguém pode atingir quem estava no caminho certo.'}
         />
 
-        <Reveal className="collision-layout">
-          <motion.div
-            className="drive-scene drive-scene-premium"
-            data-started={started}
-            data-step={current.id}
-            data-impact={current.id === '05' ? 'aftershock' : current.id === '04' ? 'impact' : 'none'}
-            animate={
-              current.id === '05'
-                ? { x: [0, -3, 4, -2, 1, 0], y: [0, 1, -2, 1, 0, 0] }
-                : { x: 0, y: 0 }
-            }
-            transition={
-              current.id === '05'
-                ? { duration: 0.58, ease: [0.22, 1, 0.36, 1] }
-                : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
-            }
-            style={{
-              '--scene-focus': sceneState.focus,
-              '--scene-trail': sceneState.trail,
-              '--scene-invasion': sceneState.invasion,
-              '--scene-impact': sceneState.impact,
-            }}
-          >
-            <div className="scene-road" />
-            <div className="scene-divider" />
-            <div className="scene-glow scene-glow-a" />
-            <div className="scene-glow scene-glow-b" />
-            <div className="scene-focus" />
-            <div className="scene-risk-trail" />
-            <div className="scene-invasion" />
-            <div className="scene-impact scene-impact-premium">
-              <span className="impact-core" />
-              <span className="impact-wave" />
-              <span className="impact-wave impact-wave-b" />
-            </div>
-            <div className="lane-tag lane-tag-left">Fluxo oposto</div>
-            <div className="lane-tag lane-tag-right">Sua faixa</div>
-            <motion.div
-              className="car car-user"
-              animate={started ? sceneState.user : collisionSceneStates['01'].user}
-              transition={{ duration: current.id === '04' ? 0.42 : 0.58, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <TopViewCar tone="user" />
-            </motion.div>
-            <motion.div
-              className="car car-lead"
-              animate={started ? sceneState.lead : collisionSceneStates['01'].lead}
-              transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <TopViewCar tone="lead" />
-            </motion.div>
-            <motion.div
-              className="car car-risk"
-              animate={started ? sceneState.risk : collisionSceneStates['01'].risk}
-              transition={{ duration: current.id === '04' ? 0.38 : 0.64, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <TopViewCar tone="risk" />
-            </motion.div>
+        <Reveal className={`collision-layout${isMobile ? ' collision-layout-mobile' : ''}`}>
+          {isMobile ? (
+            <div className="collision-mobile-stack">
+              {scene}
 
-            {!started ? (
-              <button type="button" className="scene-start" onClick={() => setStarted(true)}>
-                <Play size={18} />
-                Iniciar cena
-              </button>
-            ) : null}
+              <div className="story-progress collision-progress-bar" aria-label={`Etapa ${active + 1} de ${storyStepsCompact.length}`}>
+                <span style={{ width: `${((active + 1) / storyStepsCompact.length) * 100}%` }} />
+              </div>
 
-            <div className="scene-caption">
-              <span>Etapa {current.id}</span>
-              <strong>{current.title}</strong>
-            </div>
-          </motion.div>
+              <div className="collision-copy collision-copy-mobile collision-copy-card">
+                {storyPanel}
+              </div>
 
-          <div className="collision-copy">
-            <div className="story-progress" aria-label={`Etapa ${active + 1} de ${storyStepsCompact.length}`}>
-              <span style={{ width: `${((active + 1) / storyStepsCompact.length) * 100}%` }} />
-            </div>
+              <div className="collision-mobile-stepper-wrap">
+                <div className="collision-mobile-stepper" aria-label="Etapas da colisão">
+                  {storyStepsCompact.map((item, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={index === active ? 'is-active' : index < active ? 'is-complete' : ''}
+                      aria-label={`Ir para etapa ${item.id}: ${item.title}`}
+                      aria-pressed={index === active}
+                      aria-current={index === active ? 'step' : undefined}
+                      onClick={() => {
+                        setStarted(true)
+                        setActive(index)
+                      }}
+                    >
+                      {item.id}
+                    </button>
+                  ))}
+                </div>
 
-            <AnimatePresence mode="wait">
-              <motion.article
-                key={current.id}
-                className="story-panel"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.22 }}
-              >
-                <span className="eyebrow">Leitura da cena</span>
-                <h3>{current.title}</h3>
-                <p>{current.text}</p>
-                <strong>{current.note}</strong>
-              </motion.article>
-            </AnimatePresence>
+                <div className="collision-active-step-label" aria-live="polite">
+                  <span>Etapa {current.id}</span>
+                  <strong>{stepTitle}</strong>
+                </div>
+              </div>
 
-            <div className="story-step-buttons">
-              {storyStepsCompact.map((item, index) => (
+              <div className="story-cta collision-local-controls">
                 <button
-                  key={item.id}
                   type="button"
-                  className={index === active ? 'active' : ''}
-                  aria-label={`${item.id} ${item.title}`}
-                  title={`${item.id} ${item.title}`}
-                  onClick={() => {
-                    setStarted(true)
-                    setActive(index)
-                  }}
+                  className="button button-secondary"
+                  disabled={active === 0}
+                  aria-label="Voltar para a etapa anterior da cena"
+                  onClick={goToPreviousStep}
                 >
-                  <span>{item.id}</span>
-                  <em className="story-step-label">{item.title}</em>
+                  <ChevronLeft size={16} />
+                  Etapa anterior
                 </button>
-              ))}
-            </div>
 
-            <div className="story-cta">
-              <button
-                type="button"
-                className="button button-secondary"
-                disabled={active === 0}
-                onClick={() => setActive((value) => Math.max(0, value - 1))}
-              >
-                <ChevronLeft size={16} />
-                Anterior
-              </button>
-
-              <button
-                type="button"
-                className="button button-primary"
-                disabled={active === storyStepsCompact.length - 1}
-                onClick={() => {
-                  setStarted(true)
-                  setActive((value) => Math.min(storyStepsCompact.length - 1, value + 1))
-                }}
-              >
-                Próxima
-                <ChevronRight size={16} />
-              </button>
+                {isLastStep ? (
+                  <button
+                    type="button"
+                    className="button button-primary collision-exit-button"
+                    aria-label="Ir para a próxima seção"
+                    onClick={onExitSection}
+                  >
+                    Próxima seção
+                    <ArrowRight size={16} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    aria-label="Avançar para a próxima etapa da cena"
+                    onClick={goToNextStep}
+                  >
+                    Próxima etapa
+                    <ChevronRight size={16} />
+                  </button>
+                )}
+              </div>
             </div>
+          ) : (
+            <>
+              {scene}
 
-            <div className={active === storyStepsCompact.length - 1 ? 'manifesto manifesto-final' : 'manifesto'}>
-              <p>Uma ultrapassagem indevida pode atingir quem fez tudo certo.</p>
-              <strong>{active === storyStepsCompact.length - 1 ? 'NÃO SEJA O IMPRUDENTE.' : 'Dirigir com prudência protege mais do que a sua rota.'}</strong>
-            </div>
-          </div>
+              <div className="collision-copy">
+                <div className="story-progress" aria-label={`Etapa ${active + 1} de ${storyStepsCompact.length}`}>
+                  <span style={{ width: `${((active + 1) / storyStepsCompact.length) * 100}%` }} />
+                </div>
+
+                {storyPanel}
+
+                <div className="story-step-buttons">
+                  {storyStepsCompact.map((item, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={index === active ? 'active' : ''}
+                      aria-label={`${item.id} ${item.title}`}
+                      title={`${item.id} ${item.title}`}
+                      onClick={() => {
+                        setStarted(true)
+                        setActive(index)
+                      }}
+                    >
+                      <span>{item.id}</span>
+                      <em className="story-step-label">{item.title}</em>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="story-cta">
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={active === 0}
+                    onClick={() => setActive((value) => Math.max(0, value - 1))}
+                  >
+                    <ChevronLeft size={16} />
+                    Anterior
+                  </button>
+
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    disabled={active === storyStepsCompact.length - 1}
+                    onClick={() => {
+                      setStarted(true)
+                      setActive((value) => Math.min(storyStepsCompact.length - 1, value + 1))
+                    }}
+                  >
+                    Próxima
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                <div className={active === storyStepsCompact.length - 1 ? 'manifesto manifesto-final' : 'manifesto'}>
+                  <p>Uma ultrapassagem indevida pode atingir quem fez tudo certo.</p>
+                  <strong>{active === storyStepsCompact.length - 1 ? 'NÃO SEJA O IMPRUDENTE.' : 'Dirigir com prudência protege mais do que a sua rota.'}</strong>
+                </div>
+              </div>
+            </>
+          )}
         </Reveal>
       </div>
     </section>
   )
 }
 
-function ClosingSection() {
+function ClosingSection({ isMobile }) {
   return (
-    <section className="story-section" id="fechamento">
+    <section className={`story-section${isMobile ? ' story-section-mobile' : ''}`} id="fechamento">
       <div className="container">
-        <Reveal className="closing-panel">
+        <Reveal className={`closing-panel${isMobile ? ' closing-panel-mobile' : ''}`}>
           <span className="eyebrow">Fechamento</span>
           <h2>Dirija com mais prudência.</h2>
           <p>Nas BRs, um erro pode mudar várias vidas. Não seja o imprudente.</p>
@@ -1592,24 +1910,45 @@ function ClosingSection() {
 
 export default function App() {
   const ids = useMemo(() => journey.map((item) => item.id), [])
-  const active = useActiveSection(ids)
   const progress = usePageProgress()
+  const isMobile = useViewportMatch('(max-width: 767px)')
+  const active = useActiveSection(ids, isMobile)
+  const collisionIndex = journey.findIndex((item) => item.id === 'colisao')
+  const nextAfterCollision = journey[collisionIndex + 1]?.id ?? journey[0].id
+  const hideMobileJourneyControls = isMobile && active === 'colisao'
+
+  const scrollToSection = (id) => {
+    const node = document.getElementById(id)
+    if (!node) return
+
+    const root = getComputedStyle(document.documentElement)
+    const topbarVar = isMobile ? '--mobile-topbar-height' : '--topbar-height'
+    const topbarOffset = Number.parseFloat(root.getPropertyValue(topbarVar))
+    const headerOffset = Number.isFinite(topbarOffset) ? topbarOffset + 12 : isMobile ? 68 : 76
+    const top = node.getBoundingClientRect().top + window.scrollY - headerOffset
+
+    window.history.replaceState(null, '', `#${id}`)
+    window.scrollTo({
+      top,
+      behavior: 'smooth',
+    })
+  }
 
   return (
     <div className="site-shell">
-      <TopProgress active={active} progress={progress} />
-      <SideRail active={active} />
-      <JourneyControls active={active} />
+      <TopProgress active={active} progress={progress} isMobile={isMobile} />
+      {!isMobile ? <SideRail active={active} /> : null}
+      {!hideMobileJourneyControls ? <JourneyControls active={active} isMobile={isMobile} onNavigate={scrollToSection} /> : null}
 
-      <HeroSection />
+      <HeroSection isMobile={isMobile} />
 
       <main>
-        <RhythmSection />
-        <PanoramaSectionCompact />
-        <EvolutionSectionCompact />
-        <RiskSection />
-        <CollisionSection />
-        <ClosingSection />
+        <RhythmSection isMobile={isMobile} />
+        <PanoramaSectionCompact isMobile={isMobile} />
+        <EvolutionSectionCompact isMobile={isMobile} />
+        <RiskSection isMobile={isMobile} />
+        <CollisionSection isMobile={isMobile} onExitSection={() => scrollToSection(nextAfterCollision)} />
+        <ClosingSection isMobile={isMobile} />
       </main>
     </div>
   )
