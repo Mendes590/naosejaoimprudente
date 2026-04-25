@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   AlertTriangle,
@@ -21,17 +21,74 @@ const decimal = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
+const decimalShort = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
 
-const totals = {
-  accidents: 213452,
-  fatalAccidents: 15290,
-  deaths: 17830,
-  seriousInjuries: 59320,
-  involved: 555562,
+const storyData = {
+  annual: [
+    { year: '2023', accidents: 67767, fatalAccidents: 4858, deaths: 5627 },
+    { year: '2024', accidents: 73156, fatalAccidents: 5222, deaths: 6160 },
+    { year: '2025', accidents: 72529, fatalAccidents: 5209, deaths: 6043 },
+  ],
+  totals: {
+    involved: 555562,
+    seriousInjuries: 59320,
+  },
 }
+
+const yearlyData = storyData.annual
+const totals = {
+  accidents: yearlyData.reduce((sum, item) => sum + item.accidents, 0),
+  fatalAccidents: yearlyData.reduce((sum, item) => sum + item.fatalAccidents, 0),
+  deaths: yearlyData.reduce((sum, item) => sum + item.deaths, 0),
+  involved: storyData.totals.involved,
+  seriousInjuries: storyData.totals.seriousInjuries,
+}
+
+const evolutionModesCompact = {
+  accidents: {
+    label: 'Acidentes',
+    accent: 'gold',
+    subtitle: 'Mesmo no recorte federal, o volume segue alto.',
+    insight: '2024 sobe. 2025 segue em patamar elevado.',
+    outro: 'O problema não parece episódico.',
+  },
+  fatalAccidents: {
+    label: 'Acidentes fatais',
+    accent: 'copper',
+    subtitle: 'A letalidade continua pesada ano após ano.',
+    insight: 'Dois anos seguidos acima de cinco mil casos.',
+    outro: 'A morte não aparece como exceção.',
+  },
+  deaths: {
+    label: 'Vítimas fatais',
+    accent: 'red',
+    subtitle: 'As ausências continuam altas no recorte analisado.',
+    insight: '2024 atinge o pico. 2025 segue muito perto.',
+    outro: 'O alerta continua.',
+  },
+}
+
+const panoramaYearBreakdown = yearlyData.map((item, index) => ({
+  year: item.year,
+  value: item.deaths,
+  tone: index === 0 ? 'gold' : index === 1 ? 'copper' : 'steel',
+}))
 
 const totalDays = 365 + 366 + 365
 const totalMinutes = totalDays * 24 * 60
+const fatalShare = totals.fatalAccidents / totals.accidents
+const peoplePerAccident = totals.involved / totals.accidents
+const seriousShare = totals.seriousInjuries / totals.involved
+const seriousVsDeaths = totals.seriousInjuries / totals.deaths
+const yearlyTrend = {
+  accidents: {
+    peakYear: yearlyData.reduce((peak, item) => (item.accidents > peak.accidents ? item : peak), yearlyData[0]).year,
+    from2024To2025: ((yearlyData[2].accidents - yearlyData[1].accidents) / yearlyData[1].accidents) * 100,
+  },
+}
 
 const journey = [
   { id: 'abertura', label: 'Abertura', short: 'Início' },
@@ -39,7 +96,6 @@ const journey = [
   { id: 'panorama', label: 'Panorama', short: 'Panorama' },
   { id: 'evolucao', label: 'Evolução', short: 'Evolução' },
   { id: 'riscos', label: 'Padrões', short: 'Padrões' },
-  { id: 'humano', label: 'Fator humano', short: 'Humano' },
   { id: 'colisao', label: 'Colisão', short: 'Colisão' },
   { id: 'fechamento', label: 'Fechamento', short: 'Final' },
 ]
@@ -86,56 +142,34 @@ const panoramaCards = [
     icon: AlertTriangle,
     label: 'Acidentes registrados',
     value: totals.accidents,
-    note: 'ocorrências nas BRs entre 2023 e 2025',
+    meta: 'ocorrências',
+    insight: 'Pico em 2024. 2025 recua, mas segue alto.',
+    type: 'trend',
   },
   {
     icon: ShieldAlert,
     label: 'Acidentes fatais',
     value: totals.fatalAccidents,
-    note: 'casos em que a viagem não terminou igual começou',
+    meta: 'casos fatais',
+    insight: `${decimal.format(fatalShare * 100)}% do total de acidentes.`,
+    type: 'ring',
   },
   {
     icon: Users,
     label: 'Pessoas envolvidas',
     value: totals.involved,
-    note: 'vidas puxadas para a mesma consequência',
+    meta: 'pessoas envolvidas',
+    insight: `${decimal.format(peoplePerAccident)} pessoas por ocorrência.`,
+    type: 'flow',
   },
   {
     icon: Clock3,
     label: 'Feridos graves',
     value: totals.seriousInjuries,
-    note: 'sobreviventes com impacto severo depois da pista',
+    meta: 'sobreviventes graves',
+    insight: `${decimal.format(seriousVsDeaths)}x o total de vítimas fatais.`,
+    type: 'compare',
   },
-]
-
-const yearlyModes = {
-  accidents: {
-    label: 'Acidentes',
-    title: 'O volume sobe em 2024 e segue alto em 2025.',
-    text: 'Não há alívio real no recorte das BRs monitoradas pela PRF.',
-    insight: 'Mesmo olhando só para rodovias federais, a recorrência já assusta.',
-    accent: 'gold',
-  },
-  fatalAccidents: {
-    label: 'Acidentes fatais',
-    title: 'Dois anos seguidos acima de cinco mil casos fatais.',
-    text: 'A morte não aparece como exceção. Ela volta.',
-    insight: 'O problema permanece em patamar alto dentro do recorte analisado.',
-    accent: 'copper',
-  },
-  deaths: {
-    label: 'Vítimas fatais',
-    title: 'Mais de seis mil vidas perdidas em 2024 e 2025.',
-    text: 'Cada barra representa ausências reais.',
-    insight: 'Mesmo sem representar todo o trânsito nacional, o recorte já é grave demais.',
-    accent: 'red',
-  },
-}
-
-const yearlyData = [
-  { year: '2023', accidents: 67767, fatalAccidents: 4858, deaths: 5627 },
-  { year: '2024', accidents: 73156, fatalAccidents: 5222, deaths: 6160 },
-  { year: '2025', accidents: 72529, fatalAccidents: 5209, deaths: 6043 },
 ]
 
 const riskTabs = {
@@ -209,13 +243,7 @@ const riskTabs = {
   },
 }
 
-const humanSignal = {
-  total: 114565,
-  percent: 53.67,
-  perDay: 105,
-}
-
-const storySteps = [
+const storyStepsCompact = [
   {
     id: '01',
     title: 'Trajeto comum',
@@ -225,19 +253,19 @@ const storySteps = [
   {
     id: '02',
     title: 'Risco no sentido oposto',
-    text: 'O erro ainda está longe. Mas ele já existe.',
+    text: 'A ameaça surge no sentido contrário, mas ainda sem impacto.',
     note: 'Nem toda vítima controla o perigo que se aproxima.',
   },
   {
     id: '03',
     title: 'Ultrapassagem indevida',
-    text: 'Outro motorista invade a sua faixa e leva o risco até você.',
-    note: 'Uma decisão errada pode atingir quem não errou.',
+    text: 'A manobra errada invade sua faixa e deixa a colisão iminente.',
+    note: 'Uma decisão errada coloca quem vinha certo em risco extremo.',
   },
   {
     id: '04',
     title: 'Sem tempo',
-    text: 'A colisão frontal chega antes de qualquer correção.',
+    text: 'O espaço acaba. O impacto chega antes de qualquer correção.',
     note: 'Na BR, um segundo pode ser tudo.',
   },
   {
@@ -247,6 +275,56 @@ const storySteps = [
     note: 'A imprudência não para em quem a comete.',
   },
 ]
+
+const COLLISION_STEP_DURATION = 5200
+
+const collisionSceneStates = {
+  '01': {
+    focus: 0.14,
+    trail: 0.04,
+    invasion: 0.04,
+    impact: 0,
+    user: { x: 2, y: -8, rotate: -2, scale: 1 },
+    lead: { x: 0, y: 28, rotate: 180, scale: 1 },
+    risk: { x: 0, y: 4, rotate: 180, scale: 1 },
+  },
+  '02': {
+    focus: 0.2,
+    trail: 0.12,
+    invasion: 0.2,
+    impact: 0,
+    user: { x: 0, y: -16, rotate: -2, scale: 1 },
+    lead: { x: 4, y: 34, rotate: 180, scale: 1 },
+    risk: { x: 22, y: 28, rotate: 177, scale: 1.01 },
+  },
+  '03': {
+    focus: 0.3,
+    trail: 0.42,
+    invasion: 0.58,
+    impact: 0,
+    user: { x: -6, y: -30, rotate: -3, scale: 1 },
+    lead: { x: 8, y: 42, rotate: 180, scale: 1 },
+    risk: { x: 68, y: 92, rotate: 166, scale: 1.02 },
+  },
+  '04': {
+    focus: 0.5,
+    trail: 0.78,
+    invasion: 0.96,
+    impact: 0.96,
+    user: { x: -18, y: -58, rotate: -7, scale: 0.995 },
+    lead: { x: 10, y: 56, rotate: 180, scale: 1 },
+    risk: { x: 132, y: 182, rotate: 146, scale: 1.02 },
+  },
+  '05': {
+    focus: 0.3,
+    trail: 0.34,
+    invasion: 0.34,
+    impact: 0.7,
+    user: { x: -24, y: -68, rotate: -10, scale: 0.985 },
+    lead: { x: 16, y: 64, rotate: 184, scale: 1 },
+    risk: { x: 134, y: 184, rotate: 140, scale: 1 },
+  },
+}
 
 function formatDuration(minutes) {
   if (minutes < 60) return `${Math.round(minutes)} min`
@@ -383,6 +461,383 @@ function CountUp({ value, percent = false, suffix = '', duration = 1400 }) {
       {formatted}
       {percent ? '%' : suffix}
     </span>
+  )
+}
+
+function PanoramaAccidentsTrend({ values }) {
+  const reduce = useReducedMotion()
+  const max = Math.max(...values.map((item) => item.value))
+  const delta2025vs2024 = ((values[2].value - values[1].value) / values[1].value) * 100
+  const delta2025vs2023 = ((values[2].value - values[0].value) / values[0].value) * 100
+
+  return (
+    <div className="panorama-accident-trend">
+      <div className="panorama-accident-chips" aria-hidden="true">
+        <span className="panorama-inline-chip is-peak">Pico em {yearlyTrend.accidents.peakYear}</span>
+        <span className="panorama-inline-chip is-down">
+          {delta2025vs2024 >= 0 ? '+' : '−'}
+          {decimalShort.format(Math.abs(delta2025vs2024))}% vs 2024
+        </span>
+      </div>
+
+      <div className="panorama-mini-bars panorama-mini-bars-analytic" aria-hidden="true">
+        {values.map((item, index) => (
+          <div key={item.label} className={`panorama-mini-bar${index === 1 ? ' is-peak' : ''}`}>
+            <strong className="panorama-mini-value">{number.format(item.value)}</strong>
+            <div className="panorama-mini-bar-shell">
+              <motion.span
+                className="panorama-mini-bar-fill"
+                initial={reduce ? false : { height: 0, opacity: 0.55 }}
+                whileInView={reduce ? undefined : { height: `${(item.value / max) * 100}%`, opacity: 1 }}
+                viewport={{ once: true, amount: 0.45 }}
+                transition={{ duration: 0.7, delay: 0.08 + index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                style={reduce ? { height: `${(item.value / max) * 100}%` } : undefined}
+              />
+            </div>
+            <div className="panorama-mini-caption">
+              <span>{item.label}</span>
+              {index === 1 ? <em>pico</em> : null}
+              {index === 2 ? (
+                <small>
+                  {delta2025vs2024 >= 0 ? '+' : '−'}
+                  {decimalShort.format(Math.abs(delta2025vs2024))}%
+                </small>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="panorama-accident-note">
+        2025 recua {decimalShort.format(Math.abs(delta2025vs2024))}% em relação a 2024, mas segue{' '}
+        {delta2025vs2023 >= 0 ? 'acima' : 'abaixo'} de 2023.
+      </p>
+    </div>
+  )
+}
+
+function PanoramaRing({ progress, valueLabel, detail }) {
+  const reduce = useReducedMotion()
+  const radius = 54
+  const circumference = 2 * Math.PI * radius
+  const dashOffset = circumference * (1 - progress)
+
+  return (
+    <div className="panorama-ring">
+      <svg viewBox="0 0 140 140" aria-hidden="true">
+        <circle className="panorama-ring-track" cx="70" cy="70" r={radius} />
+        <motion.circle
+          className="panorama-ring-progress"
+          cx="70"
+          cy="70"
+          r={radius}
+          pathLength="1"
+          strokeDasharray={circumference}
+          initial={reduce ? false : { strokeDashoffset: circumference }}
+          whileInView={reduce ? undefined : { strokeDashoffset: dashOffset }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+          style={reduce ? { strokeDashoffset: dashOffset } : undefined}
+        />
+      </svg>
+      <div className="panorama-ring-copy">
+        <strong>{valueLabel}</strong>
+        <span>{detail}</span>
+      </div>
+    </div>
+  )
+}
+
+function PanoramaFlow({ ratio }) {
+  const reduce = useReducedMotion()
+  const width = `${Math.min((ratio / 3) * 100, 100)}%`
+  const marker = `${Math.min((ratio / 3) * 100, 100)}%`
+
+  return (
+    <div className="panorama-flow">
+      <span className="panorama-flow-label">média de pessoas por ocorrência</span>
+      <div className="panorama-flow-track">
+        <motion.span
+          className="panorama-flow-fill"
+          initial={reduce ? false : { width: 0 }}
+          whileInView={reduce ? undefined : { width }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          style={reduce ? { width } : undefined}
+        />
+        <span className="panorama-flow-marker" style={{ left: marker }}>
+          <strong>{decimal.format(ratio)}</strong>
+          <small>pessoas</small>
+        </span>
+      </div>
+      <div className="panorama-flow-points">
+        {[1, 2, 3].map((step) => (
+          <span key={step}>
+            {step} {step === 1 ? 'pessoa' : 'pessoas'}
+          </span>
+        ))}
+      </div>
+      <p className="panorama-flow-note">
+        Em média, cada ocorrência envolve {decimal.format(ratio)} pessoas.
+      </p>
+    </div>
+  )
+}
+
+function PanoramaCompare({ primary, secondary }) {
+  const reduce = useReducedMotion()
+  const max = Math.max(primary.value, secondary.value)
+
+  return (
+    <div className="panorama-compare" aria-hidden="true">
+      {[primary, secondary].map((item, index) => {
+        const width = `${(item.value / max) * 100}%`
+        return (
+          <div key={item.label} className="panorama-compare-row">
+            <div className="panorama-compare-head">
+              <span>{item.label}</span>
+              <strong>{item.display}</strong>
+            </div>
+            <div className="panorama-compare-track">
+              <motion.span
+                className={item.tone === 'muted' ? 'is-muted' : ''}
+                initial={reduce ? false : { width: 0, opacity: 0.45 }}
+                whileInView={reduce ? undefined : { width, opacity: 1 }}
+                viewport={{ once: true, amount: 0.5 }}
+                transition={{ duration: 0.8, delay: 0.08 + index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                style={reduce ? { width } : undefined}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function PanoramaCardVisual({ item }) {
+  if (item.type === 'trend') {
+    return <PanoramaAccidentsTrend values={yearlyData.map(({ year, accidents }) => ({ label: year, value: accidents }))} />
+  }
+
+  if (item.type === 'ring') {
+    return <PanoramaRing progress={fatalShare} valueLabel={`${decimal.format(fatalShare * 100)}%`} detail="do total" />
+  }
+
+  if (item.type === 'flow') {
+    return <PanoramaFlow ratio={peoplePerAccident} />
+  }
+
+  return (
+    <PanoramaCompare
+      primary={{ label: 'Feridos graves', value: totals.seriousInjuries, display: number.format(totals.seriousInjuries) }}
+      secondary={{ label: 'Vítimas fatais', value: totals.deaths, display: number.format(totals.deaths), tone: 'muted' }}
+    />
+  )
+}
+
+function PanoramaMetricCard({ item, index }) {
+  const emphasisClass = item.type === 'trend' || item.type === 'ring' ? ' panorama-metric-card-emphasis' : ''
+
+  return (
+    <Reveal key={item.label} className={`panorama-metric-card${emphasisClass}`} delay={0.08 + index * 0.06}>
+      <div className="panorama-metric-head">
+        <div className="panorama-metric-label">
+          <item.icon size={18} />
+          <span>{item.label}</span>
+        </div>
+        <strong>
+          <CountUp value={item.value} duration={1500} />
+        </strong>
+      </div>
+      <p>{item.meta}</p>
+      <PanoramaCardVisual item={item} />
+      {item.insight ? <small>{item.insight}</small> : null}
+    </Reveal>
+  )
+}
+
+function PanoramaTotalVisual() {
+  const reduce = useReducedMotion()
+  const total = panoramaYearBreakdown.reduce((sum, item) => sum + item.value, 0)
+  const gap = 0.018
+  let cursor = 0
+
+  const segments = panoramaYearBreakdown.map((item) => {
+    const share = item.value / total
+    const normalized = Math.max(share - gap, 0.08)
+    const segment = {
+      ...item,
+      share,
+      dasharray: `${normalized} ${1 - normalized}`,
+      dashoffset: `${0.25 - cursor}`,
+    }
+    cursor += normalized + gap
+    return segment
+  })
+
+  return (
+    <div className="panorama-total-card">
+      <div className="panorama-total-ring-shell">
+        <div className="panorama-total-ring">
+          <svg viewBox="0 0 260 260" aria-hidden="true">
+            <circle className="panorama-total-track" cx="130" cy="130" r="98" pathLength="1" />
+            {segments.map((segment, index) => (
+              <motion.circle
+                key={segment.year}
+                className={`panorama-total-segment is-${segment.tone}`}
+                cx="130"
+                cy="130"
+                r="98"
+                pathLength="1"
+                strokeDasharray={segment.dasharray}
+                strokeDashoffset={segment.dashoffset}
+                initial={reduce ? false : { opacity: 0, pathLength: 0 }}
+                whileInView={reduce ? undefined : { opacity: 1, pathLength: 1 }}
+                viewport={{ once: true, amount: 0.55 }}
+                transition={{ duration: 0.72, delay: 0.08 + index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+              />
+            ))}
+          </svg>
+
+            <motion.div
+              className="panorama-total-core"
+            initial={reduce ? false : { opacity: 0, scale: 0.92, y: 8 }}
+            whileInView={reduce ? undefined : { opacity: 1, scale: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.55 }}
+            transition={{ duration: 0.55, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <span>2023-2025</span>
+              <strong>
+                <CountUp value={totals.deaths} duration={1700} />
+              </strong>
+              <p>mortes no recorte</p>
+            </motion.div>
+          </div>
+        </div>
+
+      <div className="panorama-total-years">
+        {panoramaYearBreakdown.map((item, index) => (
+          <motion.article
+            key={item.year}
+            className={`panorama-total-year is-${item.tone}`}
+            initial={reduce ? false : { opacity: 0, y: 14 }}
+            whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.55 }}
+            transition={{ duration: 0.5, delay: 0.16 + index * 0.06, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <span>{item.year}</span>
+            <strong>{number.format(item.value)}</strong>
+          </motion.article>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function EvolutionTrendChart({ data, mode, accent }) {
+  const reduce = useReducedMotion()
+  const values = data.map((item) => item[mode])
+  const max = Math.max(...values)
+  const min = Math.min(...values)
+  const chartWidth = 640
+  const chartHeight = 272
+  const left = 54
+  const right = chartWidth - 44
+  const top = 30
+  const bottom = chartHeight - 42
+  const barWidth = 84
+  const peak = Math.max(...values)
+  const domainMin = Math.max(0, min - (max - min) * 0.4)
+  const domainMax = max + (max - min) * 0.2
+  const visualRange = Math.max(domainMax - domainMin, 1)
+  const guides = [0.18, 0.48, 0.78]
+  const bars = data.map((item, index) => {
+    const x = left + 34 + index * ((right - left - 68) / Math.max(data.length - 1, 1))
+    const usableHeight = bottom - top
+    const normalized = (item[mode] - domainMin) / visualRange
+    const height = Math.max(usableHeight * normalized, 22)
+    const y = bottom - height
+    return {
+      ...item,
+      x,
+      y,
+      height,
+      width: barWidth,
+      centerX: x + barWidth / 2,
+      isPeak: item[mode] === peak,
+    }
+  })
+  const linePath = bars.map((bar, index) => `${index === 0 ? 'M' : 'L'} ${bar.centerX} ${bar.y}`).join(' ')
+  const peakBar = bars.find((bar) => bar.isPeak) ?? bars[1]
+
+  return (
+    <div className={`evolution-chart-surface evolution-chart-surface-${accent}`}>
+      <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id={`evolution-bar-${accent}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.96" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.24" />
+          </linearGradient>
+        </defs>
+        {guides.map((guide) => {
+          const y = top + (bottom - top) * guide
+          return <line key={guide} className="evolution-chart-guide" x1={left} x2={right} y1={y} y2={y} />
+        })}
+        <line className="evolution-chart-baseline" x1={left} x2={right} y1={bottom} y2={bottom} />
+        {bars.map((bar, index) => (
+          <g key={bar.year}>
+            <motion.rect
+              className={bar.isPeak ? 'evolution-bar is-peak' : 'evolution-bar'}
+              x={bar.x}
+              y={bar.y}
+              width={bar.width}
+              height={bar.height}
+              rx="22"
+              fill={`url(#evolution-bar-${accent})`}
+              initial={reduce ? false : { opacity: 0, y: bottom, height: 0 }}
+              whileInView={reduce ? undefined : { opacity: 1, y: bar.y, height: bar.height }}
+              viewport={{ once: true, amount: 0.45 }}
+              transition={{ duration: 0.55, delay: 0.08 + index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+            />
+            <text className={bar.isPeak ? 'evolution-chart-value is-peak' : 'evolution-chart-value'} x={bar.centerX} y={bar.y - 10} textAnchor="middle">
+              {number.format(bar[mode])}
+            </text>
+            <text className="evolution-chart-year" x={bar.centerX} y={chartHeight - 9} textAnchor="middle">
+              {bar.year}
+            </text>
+          </g>
+        ))}
+        <motion.path
+          className="evolution-chart-line"
+          d={linePath}
+          pathLength="1"
+          initial={reduce ? false : { pathLength: 0, opacity: 0.38 }}
+          whileInView={reduce ? undefined : { pathLength: 1, opacity: 1 }}
+          viewport={{ once: true, amount: 0.45 }}
+          transition={{ duration: 0.82, ease: [0.22, 1, 0.36, 1] }}
+        />
+        {bars.map((bar, index) => (
+          <motion.circle
+            key={`${bar.year}-dot`}
+            className={bar.isPeak ? 'evolution-chart-dot is-peak' : 'evolution-chart-dot'}
+            cx={bar.centerX}
+            cy={bar.y}
+            r={bar.isPeak ? '6.5' : '5'}
+            initial={reduce ? false : { scale: 0, opacity: 0 }}
+            whileInView={reduce ? undefined : { scale: 1, opacity: 1 }}
+            viewport={{ once: true, amount: 0.45 }}
+            transition={{ duration: 0.3, delay: 0.18 + index * 0.08 }}
+          />
+        ))}
+        <g className="evolution-chart-peak-tag" transform={`translate(${peakBar.centerX}, ${peakBar.y - 34})`}>
+          <rect x="-22" y="-12" width="44" height="20" rx="10" />
+          <text x="0" y="2" textAnchor="middle">
+            pico
+          </text>
+        </g>
+      </svg>
+    </div>
   )
 }
 
@@ -598,7 +1053,13 @@ function RhythmSection() {
           </Reveal>
 
           <Reveal className="rhythm-sidebar" delay={0.08}>
-            <button type="button" className="toggle-button" onClick={() => setPaused((value) => !value)}>
+            <button
+              type="button"
+              className="toggle-button"
+              aria-pressed={paused}
+              aria-label={paused ? 'Retomar animação do ritmo' : 'Pausar animação do ritmo'}
+              onClick={() => setPaused((value) => !value)}
+            >
               {paused ? <Play size={15} /> : <Pause size={15} />}
               {paused ? 'Retomar' : 'Pausar'}
             </button>
@@ -621,44 +1082,37 @@ function RhythmSection() {
           </Reveal>
         </div>
 
-        <Reveal className="section-quote">
-          <strong>Enquanto o tempo passa, a estrada repete o risco.</strong>
-          <span>Recorte: ocorrências da PRF nas rodovias federais brasileiras.</span>
-        </Reveal>
       </div>
     </section>
   )
 }
 
-function PanoramaSection() {
+function PanoramaSectionCompact() {
   return (
     <section className="story-section story-section-muted" id="panorama">
       <div className="container">
         <SectionHeading
           eyebrow="Panorama geral"
-          title="Poucos números bastam para sentir o peso."
-          text="Recorte: BRs brasileiras, 2023 a 2025. Não é todo o trânsito nacional."
+          title="Poucos números mostram o peso."
+          text="BRs federais brasileiras · 2023 a 2025"
         />
 
-        <div className="panorama-layout">
-          <Reveal className="impact-panel">
-            <span className="impact-kicker">Vítimas fatais</span>
-            <strong className="impact-number">
-              <CountUp value={totals.deaths} duration={1600} />
-            </strong>
-            <p>Não são só ocorrências. São viagens interrompidas.</p>
+        <div className="panorama-stage panorama-stage-compact">
+          <Reveal className="panorama-hero panorama-hero-compact">
+            <div className="panorama-hero-copy panorama-hero-copy-compact">
+              <span className="impact-kicker">Vítimas fatais</span>
+              <h3 className="panorama-hero-title panorama-hero-title-compact">Total consolidado no recorte.</h3>
+              <p className="panorama-hero-text panorama-hero-text-compact">O total aparece no centro, distribuído em três anos seguidos de perdas.</p>
+            </div>
+
+            <div className="panorama-hero-visual panorama-hero-visual-compact">
+              <PanoramaTotalVisual />
+            </div>
           </Reveal>
 
-          <div className="stats-grid">
+          <div className="panorama-side-grid panorama-side-grid-compact">
             {panoramaCards.map((item, index) => (
-              <Reveal key={item.label} className="stat-card" delay={0.06 + index * 0.05}>
-                <item.icon size={18} />
-                <span>{item.label}</span>
-                <strong>
-                  <CountUp value={item.value} duration={1500} />
-                </strong>
-                <p>{item.note}</p>
-              </Reveal>
+              <PanoramaMetricCard key={item.label} item={item} index={index} />
             ))}
           </div>
         </div>
@@ -667,62 +1121,131 @@ function PanoramaSection() {
   )
 }
 
-function EvolutionSection() {
+function EvolutionSectionCompact() {
   const [mode, setMode] = useState('accidents')
-  const current = yearlyModes[mode]
-  const max = Math.max(...yearlyData.map((item) => item[mode]))
+  const current = {
+    accidents: {
+      label: 'Acidentes',
+      title: 'Acidentes registrados',
+      short: 'Acidentes',
+      accent: 'gold',
+      note2025: 'segue alto',
+      takeaway: 'Patamar ainda elevado.',
+    },
+    fatalAccidents: {
+      label: 'Acidentes fatais',
+      title: 'Acidentes fatais',
+      short: 'Fatais',
+      accent: 'copper',
+      note2025: 'quase no mesmo nível',
+      takeaway: 'Sem alívio consistente.',
+    },
+    deaths: {
+      label: 'Vítimas fatais',
+      title: 'Vítimas fatais',
+      short: 'Vítimas',
+      accent: 'red',
+      note2025: 'permanece perto do pico',
+      takeaway: 'O alerta continua.',
+    },
+  }[mode]
+  const values = yearlyData.map((item) => item[mode])
+  const delta = ((values[2] - values[0]) / values[0]) * 100
+  const deltaPrefix = delta >= 0 ? '+' : ''
+  const peakValue = Math.max(...values)
+  const peakYear = yearlyData.find((item) => item[mode] === peakValue)?.year
+  const trendLabel = values[2] > values[0] ? 'acima de 2023' : 'abaixo de 2023'
+  const quickTitle = `${peakYear} marca o pico.`
 
   return (
-    <section className="story-section" id="evolucao">
+    <section className="story-section evolution-section" id="evolucao">
       <div className="container">
         <SectionHeading
-          eyebrow="Evolução anual"
-          title="Os anos mudam. O cenário segue pesado."
-          text="Série anual das BRs monitoradas pela PRF. Leitura rápida, sem excesso."
+          eyebrow="Evolução"
+          title="Os anos mudam. O alerta continua."
+          text="O volume segue alto no recorte federal."
         />
 
-        <Reveal className="evolution-panel">
-          <div className="tab-row" role="tablist" aria-label="Métricas anuais">
-            {Object.entries(yearlyModes).map(([key, item]) => (
+        <Reveal className="evolution-panel evolution-panel-compact">
+          <div className="tab-row evolution-tabs" role="tablist" aria-label="Métricas anuais">
+            {Object.entries(evolutionModesCompact).map(([key, item]) => (
               <button
                 key={key}
                 type="button"
-                className={key === mode ? 'active' : ''}
+                role="tab"
+                aria-label={item.label}
+                aria-selected={key === mode}
+                className={`evolution-tab${key === mode ? ' is-active' : ''}`}
                 onClick={() => setMode(key)}
               >
-                {item.label}
+                {key === 'fatalAccidents' ? 'Fatais' : key === 'deaths' ? 'Vítimas' : 'Acidentes'}
               </button>
             ))}
           </div>
 
-          <div className="evolution-layout">
+          <div className="evolution-stage">
             <AnimatePresence mode="wait">
               <motion.div
-                key={mode}
-                className="evolution-copy"
+                key={`${mode}-chart`}
+                className="evolution-chart-card"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.22 }}
               >
-                <span className="eyebrow">Leitura direta</span>
-                <h3>{current.title}</h3>
-                <p>{current.text}</p>
-                <strong>{current.insight}</strong>
+                <div className="evolution-chart-head">
+                  <div>
+                    <span className="eyebrow">{current.title}</span>
+                    <h3>{quickTitle}</h3>
+                  </div>
+                  <div className={`evolution-peak is-${current.accent}`}>
+                    <span>Variação 2023→2025</span>
+                    <strong>
+                      {deltaPrefix}
+                      {decimal.format(delta)}%
+                    </strong>
+                  </div>
+                </div>
+
+                <EvolutionTrendChart data={yearlyData} mode={mode} accent={current.accent} />
               </motion.div>
             </AnimatePresence>
 
-            <div className={`bars bars-${current.accent}`}>
-              {yearlyData.map((item) => (
-                <div key={item.year} className="bar-card">
-                  <div className="bar-shell">
-                    <span className="bar-fill" style={{ height: `${(item[mode] / max) * 100}%` }} />
-                  </div>
-                  <strong>{number.format(item[mode])}</strong>
-                  <span>{item.year}</span>
+            <AnimatePresence mode="wait">
+              <motion.aside
+                key={`${mode}-brief`}
+                className="evolution-brief"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.22 }}
+              >
+                <span className="eyebrow">Leitura rápida</span>
+                <strong>{quickTitle}</strong>
+                <div className="evolution-brief-grid">
+                  <article>
+                    <span>Pico</span>
+                    <strong>{peakYear}</strong>
+                  </article>
+                  <article>
+                    <span>Tendência</span>
+                    <strong>{trendLabel}</strong>
+                  </article>
+                  <article>
+                    <span>2025</span>
+                    <strong>{current.note2025}</strong>
+                  </article>
+                  <article>
+                    <span>Variação</span>
+                    <strong>
+                      {deltaPrefix}
+                      {decimal.format(delta)}%
+                    </strong>
+                  </article>
                 </div>
-              ))}
-            </div>
+                <p>Nível ainda elevado.</p>
+              </motion.aside>
+            </AnimatePresence>
           </div>
         </Reveal>
       </div>
@@ -773,6 +1296,8 @@ function RiskSection() {
               <button
                 key={key}
                 type="button"
+                role="tab"
+                aria-selected={key === active}
                 className={key === active ? 'active' : ''}
                 onClick={() => setActive(key)}
               >
@@ -811,61 +1336,6 @@ function RiskSection() {
             </AnimatePresence>
           </div>
         </Reveal>
-      </div>
-    </section>
-  )
-}
-
-function HumanSection() {
-  return (
-    <section className="story-section" id="humano">
-      <div className="container">
-        <SectionHeading
-          eyebrow="Fator humano"
-          title="Quando atenção, reação e decisão aparecem tanto, o alerta é inevitável."
-          text="Leitura analítica para conscientização. Não substitui a classificação oficial da PRF."
-        />
-
-        <div className="human-layout">
-          <Reveal className="human-ring-card">
-            <div className="ring-shell" style={{ '--ring-end': `${humanSignal.percent * 3.6}deg` }}>
-              <strong>
-                <CountUp value={humanSignal.percent} percent />
-              </strong>
-            </div>
-            <div className="human-copy">
-              <span className="eyebrow">Forte sinal humano</span>
-              <h3>Mais da metade do recorte entra nessa leitura.</h3>
-              <p>
-                Grupo com sinais recorrentes de atenção insuficiente, reação tardia ou decisão imprudente.
-              </p>
-            </div>
-          </Reveal>
-
-          <div className="human-cards">
-            <Reveal className="human-card" delay={0.06}>
-              <span>Volume</span>
-              <strong>
-                <CountUp value={humanSignal.total} />
-              </strong>
-              <p>acidentes com forte sinal de falha humana.</p>
-            </Reveal>
-
-            <Reveal className="human-card" delay={0.1}>
-              <span>Ritmo diário</span>
-              <strong>
-                <CountUp value={humanSignal.perDay} />
-              </strong>
-              <p>casos por dia, em média.</p>
-            </Reveal>
-
-            <Reveal className="human-card human-card-accent" delay={0.14}>
-              <span>Mensagem</span>
-              <strong>Dirigir com prudência ainda é uma das maiores proteções.</strong>
-              <p>Não é juridiquês. É cuidado real na estrada.</p>
-            </Reveal>
-          </div>
-        </div>
       </div>
     </section>
   )
@@ -911,11 +1381,12 @@ function TopViewCar({ tone }) {
 function CollisionSection() {
   const [started, setStarted] = useState(false)
   const [active, setActive] = useState(0)
-  const current = storySteps[active]
+  const current = storyStepsCompact[active]
+  const sceneState = collisionSceneStates[current.id]
 
   useEffect(() => {
-    if (!started || active >= storySteps.length - 1) return undefined
-    const timer = setTimeout(() => setActive((value) => value + 1), 2600)
+    if (!started || active >= storyStepsCompact.length - 1) return undefined
+    const timer = setTimeout(() => setActive((value) => value + 1), COLLISION_STEP_DURATION)
     return () => clearTimeout(timer)
   }, [active, started])
 
@@ -929,28 +1400,63 @@ function CollisionSection() {
         />
 
         <Reveal className="collision-layout">
-          <div className="drive-scene" data-started={started} data-step={active}>
+          <motion.div
+            className="drive-scene drive-scene-premium"
+            data-started={started}
+            data-step={current.id}
+            data-impact={current.id === '05' ? 'aftershock' : current.id === '04' ? 'impact' : 'none'}
+            animate={
+              current.id === '05'
+                ? { x: [0, -3, 4, -2, 1, 0], y: [0, 1, -2, 1, 0, 0] }
+                : { x: 0, y: 0 }
+            }
+            transition={
+              current.id === '05'
+                ? { duration: 0.58, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
+            }
+            style={{
+              '--scene-focus': sceneState.focus,
+              '--scene-trail': sceneState.trail,
+              '--scene-invasion': sceneState.invasion,
+              '--scene-impact': sceneState.impact,
+            }}
+          >
             <div className="scene-road" />
             <div className="scene-divider" />
             <div className="scene-glow scene-glow-a" />
             <div className="scene-glow scene-glow-b" />
+            <div className="scene-focus" />
+            <div className="scene-risk-trail" />
             <div className="scene-invasion" />
-            <div className="scene-impact">
+            <div className="scene-impact scene-impact-premium">
               <span className="impact-core" />
               <span className="impact-wave" />
               <span className="impact-wave impact-wave-b" />
             </div>
             <div className="lane-tag lane-tag-left">Fluxo oposto</div>
             <div className="lane-tag lane-tag-right">Sua faixa</div>
-            <div className="car car-user">
+            <motion.div
+              className="car car-user"
+              animate={started ? sceneState.user : collisionSceneStates['01'].user}
+              transition={{ duration: current.id === '04' ? 0.42 : 0.58, ease: [0.22, 1, 0.36, 1] }}
+            >
               <TopViewCar tone="user" />
-            </div>
-            <div className="car car-lead">
+            </motion.div>
+            <motion.div
+              className="car car-lead"
+              animate={started ? sceneState.lead : collisionSceneStates['01'].lead}
+              transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+            >
               <TopViewCar tone="lead" />
-            </div>
-            <div className="car car-risk">
+            </motion.div>
+            <motion.div
+              className="car car-risk"
+              animate={started ? sceneState.risk : collisionSceneStates['01'].risk}
+              transition={{ duration: current.id === '04' ? 0.38 : 0.64, ease: [0.22, 1, 0.36, 1] }}
+            >
               <TopViewCar tone="risk" />
-            </div>
+            </motion.div>
 
             {!started ? (
               <button type="button" className="scene-start" onClick={() => setStarted(true)}>
@@ -963,11 +1469,11 @@ function CollisionSection() {
               <span>Etapa {current.id}</span>
               <strong>{current.title}</strong>
             </div>
-          </div>
+          </motion.div>
 
           <div className="collision-copy">
-            <div className="story-progress" aria-label={`Etapa ${active + 1} de ${storySteps.length}`}>
-              <span style={{ width: `${((active + 1) / storySteps.length) * 100}%` }} />
+            <div className="story-progress" aria-label={`Etapa ${active + 1} de ${storyStepsCompact.length}`}>
+              <span style={{ width: `${((active + 1) / storyStepsCompact.length) * 100}%` }} />
             </div>
 
             <AnimatePresence mode="wait">
@@ -987,18 +1493,20 @@ function CollisionSection() {
             </AnimatePresence>
 
             <div className="story-step-buttons">
-              {storySteps.map((item, index) => (
+              {storyStepsCompact.map((item, index) => (
                 <button
                   key={item.id}
                   type="button"
                   className={index === active ? 'active' : ''}
+                  aria-label={`${item.id} ${item.title}`}
+                  title={`${item.id} ${item.title}`}
                   onClick={() => {
                     setStarted(true)
                     setActive(index)
                   }}
                 >
                   <span>{item.id}</span>
-                  {item.title}
+                  <em className="story-step-label">{item.title}</em>
                 </button>
               ))}
             </div>
@@ -1017,10 +1525,10 @@ function CollisionSection() {
               <button
                 type="button"
                 className="button button-primary"
-                disabled={active === storySteps.length - 1}
+                disabled={active === storyStepsCompact.length - 1}
                 onClick={() => {
                   setStarted(true)
-                  setActive((value) => Math.min(storySteps.length - 1, value + 1))
+                  setActive((value) => Math.min(storyStepsCompact.length - 1, value + 1))
                 }}
               >
                 Próxima
@@ -1028,9 +1536,9 @@ function CollisionSection() {
               </button>
             </div>
 
-            <div className={active === storySteps.length - 1 ? 'manifesto manifesto-final' : 'manifesto'}>
+            <div className={active === storyStepsCompact.length - 1 ? 'manifesto manifesto-final' : 'manifesto'}>
               <p>Uma ultrapassagem indevida pode atingir quem fez tudo certo.</p>
-              <strong>{active === storySteps.length - 1 ? 'NÃO SEJA O IMPRUDENTE.' : 'Dirigir com prudência protege mais do que a sua rota.'}</strong>
+              <strong>{active === storyStepsCompact.length - 1 ? 'NÃO SEJA O IMPRUDENTE.' : 'Dirigir com prudência protege mais do que a sua rota.'}</strong>
             </div>
           </div>
         </Reveal>
@@ -1068,7 +1576,7 @@ function ClosingSection() {
               <p>Fonte: Polícia Rodoviária Federal.</p>
               <p>Recorte: acidentes em rodovias federais brasileiras entre 2023 e 2025.</p>
               <p>Este site não representa todo o trânsito do Brasil.</p>
-              <p>A leitura do fator humano é analítica e voltada à conscientização.</p>
+              <p>A narrativa visual resume padrões observados nos dados oficiais.</p>
             </div>
           </details>
 
@@ -1097,13 +1605,24 @@ export default function App() {
 
       <main>
         <RhythmSection />
-        <PanoramaSection />
-        <EvolutionSection />
+        <PanoramaSectionCompact />
+        <EvolutionSectionCompact />
         <RiskSection />
-        <HumanSection />
         <CollisionSection />
         <ClosingSection />
       </main>
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
