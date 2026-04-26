@@ -109,31 +109,31 @@ const heroHighlights = [
 const rhythmCards = [
   {
     id: 'accidents',
-    label: 'Acidentes por dia',
+    label: 'Acidentes',
     value: Math.round(totals.accidents / totalDays),
-    kicker: 'Nas BRs analisadas, o problema não para.',
-    microcopy: 'Outra viagem interrompida a cada 7 minutos.',
+    kicker: 'O risco não espera um grande evento.',
+    microcopy: '195 por dia · a cada 7 min',
   },
   {
     id: 'fatal',
-    label: 'Acidentes fatais por dia',
+    label: 'Fatais',
     value: Math.round(totals.fatalAccidents / totalDays),
-    kicker: 'O risco se repete todos os dias.',
-    microcopy: `Um acidente fatal a cada ${formatDuration(totalMinutes / totals.fatalAccidents)}.`,
+    kicker: 'Ele se repete todos os dias.',
+    microcopy: `14 por dia · a cada ${formatDuration(totalMinutes / totals.fatalAccidents)}`,
   },
   {
     id: 'deaths',
-    label: 'Mortes por dia',
+    label: 'Mortes',
     value: Math.round(totals.deaths / totalDays),
-    kicker: 'Há casas esperando por alguém.',
-    microcopy: `Uma morte a cada ${formatDuration(totalMinutes / totals.deaths)}.`,
+    kicker: 'Nas BRs, um segundo pode mudar tudo.',
+    microcopy: `16 por dia · a cada ${formatDuration(totalMinutes / totals.deaths)}`,
   },
   {
     id: 'serious',
-    label: 'Feridos graves por dia',
+    label: 'Feridos',
     value: Math.round(totals.seriousInjuries / totalDays),
-    kicker: 'Nem toda vítima morre. Muitas seguem marcadas.',
-    microcopy: 'Trauma grave em média 54 vezes por dia.',
+    kicker: 'O impacto não termina na pista.',
+    microcopy: '54 por dia · trauma grave',
   },
 ]
 
@@ -143,7 +143,7 @@ const panoramaCards = [
     label: 'Acidentes registrados',
     value: totals.accidents,
     meta: 'ocorrências',
-    insight: 'Pico em 2024. 2025 recua, mas segue alto.',
+    insight: 'Pico em 2024. 2025 recua pouco.',
     type: 'trend',
   },
   {
@@ -151,7 +151,7 @@ const panoramaCards = [
     label: 'Acidentes fatais',
     value: totals.fatalAccidents,
     meta: 'casos fatais',
-    insight: `${decimal.format(fatalShare * 100)}% do total de acidentes.`,
+    insight: `${decimal.format(fatalShare * 100)}% do total.`,
     type: 'ring',
   },
   {
@@ -159,7 +159,7 @@ const panoramaCards = [
     label: 'Pessoas envolvidas',
     value: totals.involved,
     meta: 'pessoas envolvidas',
-    insight: `${decimal.format(peoplePerAccident)} pessoas por ocorrência.`,
+    insight: `Média de ${decimal.format(peoplePerAccident)} por ocorrência.`,
     type: 'flow',
   },
   {
@@ -167,7 +167,7 @@ const panoramaCards = [
     label: 'Feridos graves',
     value: totals.seriousInjuries,
     meta: 'sobreviventes graves',
-    insight: `${decimal.format(seriousVsDeaths)}x o total de vítimas fatais.`,
+    insight: `${decimal.format(seriousVsDeaths)}x o total de mortes.`,
     type: 'compare',
   },
 ]
@@ -176,7 +176,7 @@ const riskTabs = {
   causes: {
     label: 'Causas',
     title: 'Muito risco começa antes da batida.',
-    text: 'Atenção insuficiente, reação tardia e decisões sem margem aparecem de novo e de novo.',
+    text: 'Distração, reação tardia e decisões sem margem seguem aparecendo.',
     insight: 'Em muitos casos, o que faltou foi atenção.',
     unit: 'ocorrências',
     data: [
@@ -190,7 +190,7 @@ const riskTabs = {
   types: {
     label: 'Tipos',
     title: 'O que mais acontece não é sempre o que mais mata.',
-    text: 'Colisão traseira domina o volume. Colisão frontal carrega peso muito maior.',
+    text: 'O volume segue alto. A gravidade muda de tipo para tipo.',
     insight: 'Frequência e letalidade não contam a mesma história.',
     unit: 'ocorrências',
     data: [
@@ -204,7 +204,7 @@ const riskTabs = {
   lethality: {
     label: 'Letalidade',
     title: 'Há erros que quase não dão segunda chance.',
-    text: 'Contramão, colisão frontal e atropelamentos concentram risco extremo de morte.',
+    text: 'Contramão, frontal e atropelamentos concentram o risco mais brutal.',
     insight: 'Atravessar a faixa pode atravessar uma família.',
     unit: 'letalidade',
     data: [
@@ -218,7 +218,7 @@ const riskTabs = {
   patterns: {
     label: 'Padrões',
     title: 'A repetição mostra comportamento, não acaso.',
-    text: 'Atenção, reação e decisão aparecem como núcleo do problema.',
+    text: 'Atenção, reação e decisão errada formam o núcleo do problema.',
     insight: 'A estrada não perdoa distrações repetidas.',
     unit: 'ocorrências agrupadas',
     data: [
@@ -230,7 +230,7 @@ const riskTabs = {
   territory: {
     label: 'Território',
     title: 'O problema se espalha. Alguns corredores pesam ainda mais.',
-    text: 'Não é todo o trânsito brasileiro. Ainda assim, o recorte das BRs já desenha áreas críticas.',
+    text: 'Mesmo olhando só para as BRs, algumas rotas já acumulam perdas demais.',
     insight: 'Mesmo nas BRs apenas, a escala já é alarmante.',
     unit: 'vítimas fatais',
     data: [
@@ -733,9 +733,19 @@ function PanoramaCardVisual({ item, isMobile }) {
   if (isMobile && item.type === 'trend') {
     return (
       <div className="panorama-mobile-summary" aria-hidden="true">
-        <span>Pico em 2024</span>
-        <strong>{number.format(yearlyData[2].accidents)}</strong>
-        <small>2025 ficou 0,9% abaixo de 2024.</small>
+        <span>Acidentes</span>
+        <strong>{number.format(totals.accidents)}</strong>
+        <small>Pico em 2024. 2025 ficou 0,9% abaixo.</small>
+      </div>
+    )
+  }
+
+  if (isMobile && item.type === 'ring') {
+    return (
+      <div className="panorama-mobile-summary" aria-hidden="true">
+        <span>Acidentes fatais</span>
+        <strong>{number.format(totals.fatalAccidents)}</strong>
+        <small>{decimal.format(fatalShare * 100)}% do total registrado.</small>
       </div>
     )
   }
@@ -743,9 +753,19 @@ function PanoramaCardVisual({ item, isMobile }) {
   if (isMobile && item.type === 'flow') {
     return (
       <div className="panorama-mobile-summary" aria-hidden="true">
-        <span>Média por ocorrência</span>
-        <strong>{decimal.format(peoplePerAccident)} pessoas</strong>
-        <small>{number.format(totals.involved)} envolvidos no período.</small>
+        <span>Envolvidos</span>
+        <strong>{number.format(totals.involved)}</strong>
+        <small>Média de {decimal.format(peoplePerAccident)} por ocorrência.</small>
+      </div>
+    )
+  }
+
+  if (isMobile && item.type === 'compare') {
+    return (
+      <div className="panorama-mobile-summary" aria-hidden="true">
+        <span>Feridos graves</span>
+        <strong>{number.format(totals.seriousInjuries)}</strong>
+        <small>{decimal.format(seriousVsDeaths)}x o total de vítimas fatais.</small>
       </div>
     )
   }
@@ -1093,8 +1113,9 @@ function HeroSection({ isMobile }) {
           <span className="eyebrow">PRF · rodovias federais brasileiras · 2023 a 2025</span>
           <h1>Nas BRs, um erro pode mudar várias vidas.</h1>
           <p>
-            Dados da Polícia Rodoviária Federal sobre acidentes em rodovias federais brasileiras.
-            Não é todo o trânsito do Brasil. E já é grave o bastante.
+            {isMobile
+              ? 'Dados da PRF sobre BRs brasileiras. Não é todo o trânsito do país. E já é grave o bastante.'
+              : 'Dados da Polícia Rodoviária Federal sobre acidentes em rodovias federais brasileiras. Não é todo o trânsito do Brasil. E já é grave o bastante.'}
           </p>
 
           <div className={`hero-pill-row${isMobile ? ' hero-pill-row-mobile' : ''}`}>
@@ -1106,11 +1127,11 @@ function HeroSection({ isMobile }) {
           </div>
 
           <div className={`hero-actions${isMobile ? ' hero-actions-mobile' : ''}`}>
-            <a href="#ritmo" className="button button-primary">
+            <a href="#ritmo" className="button button-primary" aria-label="Ir para a seção Ritmo">
               Sentir o ritmo
               <ArrowRight size={16} />
             </a>
-            <a href="#colisao" className="button button-secondary">
+            <a href="#colisao" className="button button-secondary" aria-label="Ir para a seção Colisão">
               Entender a colisão
             </a>
           </div>
@@ -1178,7 +1199,7 @@ function RhythmSection({ isMobile }) {
         <SectionHeading
           eyebrow="Ritmo do problema"
           title="Isso não acontece às vezes. Acontece todos os dias."
-          text="Transformar volume em tempo deixa a repetição mais clara. Nas BRs analisadas, o risco segue rodando."
+          text={isMobile ? 'Quatro leituras curtas para sentir a repetição.' : 'Transformar volume em tempo deixa a repetição mais clara. Nas BRs analisadas, o risco segue rodando.'}
         />
 
         <div className={`rhythm-layout${isMobile ? ' rhythm-layout-mobile rhythm-mobile-stack' : ''}`}>
@@ -1254,6 +1275,8 @@ function RhythmSection({ isMobile }) {
                   key={item.id}
                   type="button"
                   className={index === active ? 'rhythm-card active' : 'rhythm-card'}
+                  aria-pressed={index === active}
+                  aria-label={`${item.label}: ${item.value}. ${item.microcopy}`}
                   onClick={() => {
                     setActive(index)
                     setPaused(true)
@@ -1280,15 +1303,15 @@ function PanoramaSectionCompact({ isMobile }) {
         <SectionHeading
           eyebrow="Panorama geral"
           title="Poucos números mostram o peso."
-          text="BRs federais brasileiras · 2023 a 2025"
+          text={isMobile ? 'O essencial do recorte, sem excesso.' : 'BRs federais brasileiras · 2023 a 2025'}
         />
 
         <div className={`panorama-stage panorama-stage-compact${isMobile ? ' panorama-stage-mobile' : ''}`}>
           <Reveal className={`panorama-hero panorama-hero-compact${isMobile ? ' panorama-hero-mobile' : ''}`}>
             <div className="panorama-hero-copy panorama-hero-copy-compact">
               <span className="impact-kicker">Vítimas fatais</span>
-              <h3 className="panorama-hero-title panorama-hero-title-compact">Total consolidado no recorte.</h3>
-              <p className="panorama-hero-text panorama-hero-text-compact">O total aparece no centro, distribuído em três anos seguidos de perdas.</p>
+              <h3 className="panorama-hero-title panorama-hero-title-compact">17.830 vidas perdidas no recorte.</h3>
+              <p className="panorama-hero-text panorama-hero-text-compact">Três anos seguidos de perdas nas BRs monitoradas pela PRF.</p>
             </div>
 
             <div className="panorama-hero-visual panorama-hero-visual-compact">
@@ -1374,7 +1397,7 @@ function EvolutionSectionCompact({ isMobile }) {
         <SectionHeading
           eyebrow="Evolução"
           title="Os anos mudam. O alerta continua."
-          text="O volume segue alto no recorte federal."
+          text={isMobile ? 'Valores anuais em leitura direta.' : 'O volume segue alto no recorte federal.'}
         />
 
         <Reveal className={`evolution-panel evolution-panel-compact${isMobile ? ' evolution-panel-mobile' : ''}`}>
@@ -1458,7 +1481,7 @@ function EvolutionSectionCompact({ isMobile }) {
                     </strong>
                   </article>
                 </div>
-                <p>Nível ainda elevado.</p>
+                <p>{current.takeaway}</p>
               </motion.aside>
             </AnimatePresence>
           </div>
@@ -1502,7 +1525,7 @@ function RiskSection({ isMobile }) {
         <SectionHeading
           eyebrow="O que mais pesa"
           title="Ver padrões ajuda a entender onde o risco cresce."
-          text="Causas, tipos, letalidade, padrões e território. Tudo em leitura curta e direta."
+          text={isMobile ? 'Top 5 em leitura curta e direta.' : 'Causas, tipos, letalidade, padrões e território. Tudo em leitura curta e direta.'}
         />
 
         <Reveal className={`risk-panel${isMobile ? ' risk-panel-mobile' : ''}`}>
@@ -1514,6 +1537,7 @@ function RiskSection({ isMobile }) {
                 role="tab"
                 aria-selected={key === active}
                 className={key === active ? 'active' : ''}
+                aria-label={`Mostrar ${item.label}`}
                 onClick={() => setActive(key)}
               >
                 {item.label}
@@ -1596,12 +1620,16 @@ function TopViewCar({ tone }) {
 function CollisionSection({ isMobile, onExitSection }) {
   const [started, setStarted] = useState(isMobile)
   const [active, setActive] = useState(0)
+  const reduceMotion = useReducedMotion()
   const lastStepIndex = storyStepsCompact.length - 1
   const current = storyStepsCompact[active]
   const sceneStates = isMobile ? collisionSceneStatesMobile : collisionSceneStates
   const sceneState = sceneStates[current.id]
   const stepTitle = isMobile && current.id === '03' ? 'Ultrapassagem' : current.title
   const isLastStep = active === lastStepIndex
+  const mobileStoryTitle = isLastStep && isMobile ? 'Depois da batida' : current.title
+  const mobileStoryText = isLastStep && isMobile ? 'O impacto termina na pista. A consequência continua fora dela.' : current.text
+  const mobileStoryNote = isLastStep && isMobile ? 'A imprudência não para em quem a comete.' : current.note
 
   useEffect(() => {
     if (isMobile) setStarted(true)
@@ -1707,9 +1735,9 @@ function CollisionSection({ isMobile, onExitSection }) {
         transition={{ duration: 0.22 }}
       >
         <span className="eyebrow">Leitura da cena</span>
-        <h3>{current.title}</h3>
-        <p>{current.text}</p>
-        <strong>{current.note}</strong>
+        <h3>{mobileStoryTitle}</h3>
+        <p>{mobileStoryText}</p>
+        <strong>{mobileStoryNote}</strong>
       </motion.article>
     </AnimatePresence>
   )
@@ -1736,13 +1764,31 @@ function CollisionSection({ isMobile, onExitSection }) {
                 {storyPanel}
               </div>
 
-              <div className="collision-mobile-stepper-wrap">
-                <div className="collision-mobile-stepper" aria-label="Etapas da colisão">
+              {isLastStep ? (
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key="collision-impact-warning"
+                    className="collision-impact-warning"
+                    initial={reduceMotion ? false : { opacity: 0, y: 12, scale: 0.98 }}
+                    animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+                    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.985 }}
+                    transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <span>Não seja</span>
+                    <strong>o imprudente.</strong>
+                  </motion.div>
+                </AnimatePresence>
+              ) : null}
+
+              <div className={`collision-mobile-stepper-wrap${isLastStep ? ' is-final' : ''}`}>
+                <div className="collision-mobile-stepper" aria-label="Etapas da colisão" role="tablist">
                   {storyStepsCompact.map((item, index) => (
                     <button
                       key={item.id}
                       type="button"
                       className={index === active ? 'is-active' : index < active ? 'is-complete' : ''}
+                      role="tab"
+                      aria-selected={index === active}
                       aria-label={`Ir para etapa ${item.id}: ${item.title}`}
                       aria-pressed={index === active}
                       aria-current={index === active ? 'step' : undefined}
@@ -1871,19 +1917,26 @@ function ClosingSection({ isMobile }) {
       <div className="container">
         <Reveal className={`closing-panel${isMobile ? ' closing-panel-mobile' : ''}`}>
           <span className="eyebrow">Fechamento</span>
-          <h2>Dirija com mais prudência.</h2>
-          <p>Nas BRs, um erro pode mudar várias vidas. Não seja o imprudente.</p>
+          <h2>Voltar em segurança importa.</h2>
+          <p>{isMobile ? 'Cada escolha no volante alcança outras vidas.' : 'Nas BRs, um erro pode mudar várias vidas. Prudência continua sendo cuidado.'}</p>
 
-          <div className="closing-statements">
-            <article>
-              <strong>Em casa, sempre tem alguém esperando.</strong>
-              <span>Voltar em segurança também é um ato de cuidado.</span>
-            </article>
-            <article>
-              <strong>Não é todo o trânsito brasileiro.</strong>
-              <span>É apenas o recorte das BRs monitoradas pela PRF. E já é grave o bastante.</span>
-            </article>
-          </div>
+          {isMobile ? (
+            <div className="closing-mobile-note">
+              <strong>Prudência não é detalhe. É cuidado com quem você nem conhece.</strong>
+              <span>O recorte mostra só as BRs monitoradas pela PRF. E já pesa demais.</span>
+            </div>
+          ) : (
+            <div className="closing-statements">
+              <article>
+                <strong>Em casa, sempre tem alguém esperando.</strong>
+                <span>Voltar em segurança também é um ato de cuidado.</span>
+              </article>
+              <article>
+                <strong>Não é todo o trânsito brasileiro.</strong>
+                <span>É apenas o recorte das BRs monitoradas pela PRF. E já é grave o bastante.</span>
+              </article>
+            </div>
+          )}
 
           <details className="methodology">
             <summary>
@@ -1898,7 +1951,7 @@ function ClosingSection({ isMobile }) {
             </div>
           </details>
 
-          <a href="#abertura" className="button button-primary closing-button">
+          <a href="#abertura" className="button button-primary closing-button" aria-label="Voltar ao início da experiência">
             Voltar ao início
             <ArrowUp size={16} />
           </a>
